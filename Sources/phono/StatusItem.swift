@@ -44,6 +44,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
         return [
             MenuItem(liveTitle: { self.speech.statusText }),
+            MenuItem("Load Phonon-2", isShown: { self.speech.canLoad }) { self.speech.load() },
             MenuItem(liveTitle: { self.hint }),
             .separator(),
             choice(

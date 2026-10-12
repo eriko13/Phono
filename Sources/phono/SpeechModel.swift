@@ -24,11 +24,19 @@ final class SpeechModel {
 
     var statusText: String {
         switch state {
-        case .notInstalled: return "Model not downloaded — run Scripts/install.sh"
+        case .notInstalled: return "Model not downloaded — run Scripts/download-model.sh"
         case .loading(firstRun: false): return "Loading Phonon-2…"
         case .loading(firstRun: true): return "Preparing Phonon-2 for this Mac (once, 1–2 min)…"
         case .ready: return "Phonon-2 ready"
         case .failed(let reason): return "Phonon-2 failed: \(reason)"
+        }
+    }
+
+    /// Nothing loaded and nothing loading: the menu offers to try again.
+    var canLoad: Bool {
+        switch state {
+        case .notInstalled, .failed: return true
+        case .loading, .ready: return false
         }
     }
 
@@ -43,7 +51,9 @@ final class SpeechModel {
             let result = Result {
                 try Runner(directory: directory) { phase in
                     guard phase == "compiling" else { return }
-                    Task { @MainActor in self.state = .loading(firstRun: true) }
+                    Task { @MainActor in
+                        if case .loading = self.state { self.state = .loading(firstRun: true) }
+                    }
                 }
             }
             Task { @MainActor in

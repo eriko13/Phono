@@ -7,12 +7,12 @@
 | Microphone | Records only while the shortcut is active. Audio stays in memory and is never written to disk. |
 | Accessibility | Sees a lone ⌥ or fn key, and whether another key or click came while it was held, but never which key. Posts ⌘V to paste. |
 | Clipboard | Writes the transcript, then restores what was there. |
-| Network | HTTP to `127.0.0.1` only, to the local engine. |
-| Files | Writes `~/Library/Logs/Phono/engine.log`. |
+| Network | None. |
+| Files | Reads the model in `~/Library/Application Support/Phono`. Core ML keeps its compiled copy in `~/Library/Caches/phonon-coreml`. |
 
 The last 10 transcripts stay in memory for the Recent menu and are gone when Phono quits.
 
-`Scripts/setup-engine.sh` is the only part that uses the internet. It installs Python packages from PyPI and downloads Phonon-2 from Hugging Face.
+`Scripts/download-model.sh` is the only part that uses the internet. It downloads Phonon-2 from one pinned Hugging Face revision and checks every file against a SHA-256 sum. Building Phono also fetches the [phonon-coreml](https://github.com/fermionresearch/phonon-coreml) Swift package at a pinned version.
 
 ## Reporting a vulnerability
 
