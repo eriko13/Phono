@@ -15,7 +15,7 @@ final class DictationController {
     private(set) var recent: [String] = []
 
     private let settings: Settings
-    private let engine: EngineController
+    private let speech: SpeechModel
     private let recorder = Recorder()
     private let hud = HUD()
     private var phase: Phase = .idle {
@@ -37,9 +37,9 @@ final class DictationController {
     private var revealed = true
     private var revealTask: Task<Void, Never>?
 
-    init(settings: Settings, engine: EngineController) {
+    init(settings: Settings, speech: SpeechModel) {
         self.settings = settings
-        self.engine = engine
+        self.speech = speech
     }
 
     var isRecording: Bool { phase == .recording }
@@ -90,16 +90,13 @@ final class DictationController {
     }
 
     private func readinessProblem() -> Problem? {
-        switch engine.state {
+        switch speech.state {
         case .ready:
             break
-        case .starting:
+        case .loading:
             return Problem(message: "Phonon-2 is still loading…", symbol: "hourglass")
-        case .notInstalled:
-            return Problem(message: "Engine not installed — run Scripts/setup-engine.sh",
-                           symbol: "exclamationmark.circle")
-        case .stopped, .failed:
-            return Problem(message: "Engine is not running — see the menu", symbol: "exclamationmark.circle")
+        case .notInstalled, .failed:
+            return Problem(message: speech.statusText, symbol: "exclamationmark.circle")
         }
 
         if Permissions.isMicrophoneGranted { return nil }
@@ -185,17 +182,14 @@ final class DictationController {
     // MARK: - Transcription
 
     private func transcribe(_ samples: [Float]) async {
-        guard WAV.duration(sampleCount: samples.count) >= Self.minimumSeconds else {
+        guard Model.duration(sampleCount: samples.count) >= Self.minimumSeconds else {
             updateHUD { $0.hide() }
             return
         }
         updateHUD { $0.showWorking() }
 
-        let wav = WAV.encode(samples: samples)
-        let client = engine.client
-        let hotwords = settings.hotwords
         do {
-            let raw = try await client.transcribe(audio: wav, hotwords: hotwords)
+            let raw = try await speech.transcribe(samples)
             guard let text = Transcript.finalize(raw, appendSpace: settings.appendSpace) else {
                 updateHUD { $0.flash("No speech heard", symbol: "waveform.slash") }
                 return

@@ -14,7 +14,6 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
         return Settings(store: UserDefaults(suiteName: domain) ?? .standard)
     }()
 
-    public static let defaultPort = 8178
     /// macOS system sounds offered for the end of a recording.
     public static let stopSounds = ["Bottle", "Morse", "Purr", "Tink", "Glass", "Pop"]
 
@@ -27,7 +26,6 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
     /// Stored key names. Changing one orphans users' saved values.
     enum Key: String {
         case mode = "hotkeyMode", hotkey, autoPaste, appendSpace, sounds, stopSound
-        case port = "enginePort", enginePath, hotwords
     }
 
     public var mode: HotkeyMode {
@@ -62,23 +60,6 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
             return Self.stopSounds.contains(name) ? name : Self.stopSounds[0]
         }
         nonmutating set { store.set(newValue, forKey: Key.stopSound.rawValue) }
-    }
-
-    // The settings below have no menu item. Set them with `defaults write`.
-
-    public var port: Int {
-        let port = value(.port, 0)
-        return (1024...65535).contains(port) ? port : Self.defaultPort
-    }
-
-    /// An explicit path to the `fermion` binary, if not in a standard place.
-    public var enginePath: String? {
-        let path = value(.enginePath, "")
-        return path.isEmpty ? nil : path
-    }
-
-    public var hotwords: [String] {
-        Hotwords.parse(value(.hotwords, ""))
     }
 
     /// `object(forKey:)`, so a value never set reads as `fallback`, not as
