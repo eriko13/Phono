@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Least privilege: CI only needs to read the repo.
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      # actions/checkout v4.2.2 — pinned by full commit SHA.
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Build (strict concurrency, warnings as errors)
+        run: swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+
+      - name: Test core logic (WAV, engine protocol, settings)
+        run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+
+      - name: Check scripts parse
+        run: for f in Scripts/*.sh; do bash -n "$f"; done
+
+      # macOS's bash 3.2 reads non-ASCII bytes (like "…") as part of a bare
+      # variable name, so "$VAR…" fails under `set -u`. Use "${VAR}…".
+      - name: Check no bare variable touches non-ASCII text
+        run: |
+          perl -ne 'if (/\$[A-Za-z_]\w*[^\x00-\x7F]/) { print "$ARGV: $_"; $bad = 1 } END { exit($bad ? 1 : 0) }' Scripts/*.sh
+
+      - name: Bundle Phono.app (ad-hoc signed in CI)
+        run: ./Scripts/bundle.sh
+
+      - name: Verify the app icon is in the bundle
+        run: test -s build/Phono.app/Contents/Resources/AppIcon.icns
+
+      - name: Verify bundle assembles and ad-hoc signs
+        run: codesign --verify --verbose=2 build/Phono.app
+
+      - name: CLI smoke test (no engine, no permissions)
+        run: |
+          build/Phono.app/Contents/MacOS/phono status
+          # Unknown commands print usage and exit 2.
+          set +e; build/Phono.app/Contents/MacOS/phono help; test $? -eq 2
