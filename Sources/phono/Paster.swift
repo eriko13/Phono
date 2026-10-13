@@ -23,6 +23,8 @@ enum Paster {
     private static let restoreDelay: Duration = .milliseconds(600)
     /// Some apps drop characters that arrive with no gap between them.
     private static let keyGap: Duration = .milliseconds(2)
+    /// Between the four events of ⌘V. A real key press also has a gap.
+    private static let chordGap: Duration = .milliseconds(10)
     /// The text still being typed. The next text waits for it.
     private static var typing: Task<Void, Never>?
 
@@ -42,9 +44,9 @@ enum Paster {
         guard willPaste else { return .copied }
 
         let ours = pasteboard.changeCount
-        postCommandV()
 
         Task { @MainActor in
+            await postCommandV()
             try? await Task.sleep(for: restoreDelay)
             // If anything else wrote to the clipboard meanwhile, leave it.
             guard NSPasteboard.general.changeCount == ours, !saved.isEmpty else { return }
@@ -83,14 +85,25 @@ enum Paster {
 
     // MARK: - Keystroke
 
-    private static func postCommandV() {
+    /// The whole key press, as a keyboard sends it: ⌘ down, V down, V up,
+    /// ⌘ up. Some apps, such as Warp, track ⌘ from its own key events, so a
+    /// lone V with the ⌘ flag is not the same as a real ⌘V for them.
+    private static func postCommandV() async {
         let source = CGEventSource(stateID: .combinedSessionState)
-        let keyV: CGKeyCode = 9   // kVK_ANSI_V
-        for isDown in [true, false] {
-            let event = CGEvent(keyboardEventSource: source, virtualKey: keyV, keyDown: isDown)
+        let keyCommand: CGKeyCode = 55   // kVK_Command
+        let keyV: CGKeyCode = 9          // kVK_ANSI_V
+        let steps: [(key: CGKeyCode, isDown: Bool, flags: CGEventFlags)] = [
+            (keyCommand, true, .maskCommand),
+            (keyV, true, .maskCommand),
+            (keyV, false, .maskCommand),
+            (keyCommand, false, []),
+        ]
+        for (index, step) in steps.enumerated() {
+            if index > 0 { try? await Task.sleep(for: chordGap) }
+            let event = CGEvent(keyboardEventSource: source, virtualKey: step.key, keyDown: step.isDown)
             // Set the flags outright, so modifiers still held from the
             // dictation shortcut (⌃⌥) do not turn this into ⌃⌥⌘V.
-            event?.flags = .maskCommand
+            event?.flags = step.flags
             event?.post(tap: .cghidEventTap)
         }
     }
