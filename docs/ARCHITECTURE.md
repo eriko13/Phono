@@ -15,12 +15,14 @@ HotkeyManager ─► DictationController ─► Recorder (16 kHz mono)
                         │
                         ├─► SpeechModel ─► Phonon-2 (Core ML, Neural Engine)
                         │              └─► or a Phonon server (HTTP)
+                        ├─► ServerStream ─► a Phonon server, live (WebSocket)
                         │
                         └─► Paster (⌘V or typing) and HUD
 ```
 
 - **SpeechModel** loads Phonon-2 at launch on a background queue and keeps it in memory. On the first launch, Core ML compiles the model for the Mac's Neural Engine, which takes a minute or two; later launches load in about a second. Each clip runs on one serial queue.
 - **SpeechModel** holds one `Transcribing` engine, chosen by the Engine setting. `Runner` runs Phonon-2 in this process. `ServerEngine` posts each clip as a 16-bit WAV to a Phonon server's `/v1/audio/transcriptions` (OpenAI's audio API) with a bearer key. It counts as ready once the server transcribes half a second of silence, which also checks the key. Switching engines drops the old one, so the local model's memory is freed.
+- **ServerStream** streams one dictation to a Phonon server's `/v1/audio/stream` while the shortcut is held: 16-bit PCM out as the Recorder hears it, and the server's partial and final text back for the HUD's preview. On release it sends `end` and pastes the server's `done` transcript. If the stream fails at any point (the server serves one stream at a time, and older servers have none), DictationController sends the whole clip to `/v1/audio/transcriptions` instead. The local engine has no stream, so it shows no preview.
 - **HotkeyManager** registers key combinations with Carbon. A lone modifier (⌥, fn) cannot be registered that way, so it watches global key events instead, which needs Accessibility. `ModifierTriggerState` decides what counts as a press: if another key, modifier, or click joins, the press is interrupted and the audio discarded.
 - **DictationController** records from the first instant of a lone-modifier press, but shows the HUD and plays the sound only after 250 ms, so quick taps and ⌥← stay invisible.
 - **Recorder** converts to 16 kHz mono on the audio thread. Its tap closure is built outside the main actor, because Swift 6 traps when the audio thread calls a main-actor closure.

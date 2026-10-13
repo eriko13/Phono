@@ -17,9 +17,16 @@ public enum Engine: String, CaseIterable, Sendable {
 }
 
 /// The parts of talking to a Phonon server that need no networking: URLs,
-/// the request body, and the reply. The server speaks OpenAI's audio API.
+/// the request body, and the reply. The server speaks OpenAI's audio API,
+/// plus a WebSocket stream for live text.
 public enum Server {
     public static let transcriptionsPath = "/v1/audio/transcriptions"
+    public static let streamPath = "/v1/audio/stream"
+
+    /// The first message on a stream: 16 kHz mono 16-bit PCM follows.
+    public static let streamStart = #"{"sample_rate": 16000, "format": "pcm_s16le"}"#
+    /// The last message: the server finishes the open phrase and sends `done`.
+    public static let streamEnd = #"{"type": "end"}"#
 
     /// `overmn:8000`, `http://overmn:8000`, and `http://overmn:8000/` all
     /// name the same server. Without a scheme, http is assumed.
@@ -37,6 +44,24 @@ public enum Server {
 
     public static func url(_ base: URL, _ path: String) -> URL {
         URL(string: base.absoluteString + path)!
+    }
+
+    /// The stream lives on the same host and port: http becomes ws, and
+    /// https becomes wss.
+    public static func streamURL(_ base: URL) -> URL {
+        var components = URLComponents(url: url(base, streamPath), resolvingAgainstBaseURL: false)!
+        components.scheme = base.scheme?.lowercased() == "https" ? "wss" : "ws"
+        return components.url!
+    }
+
+    /// 16-bit little-endian PCM, the WAV's data and the stream's frames.
+    public static func pcm16(_ samples: [Float]) -> Data {
+        var data = Data(capacity: samples.count * 2)
+        for sample in samples {
+            let value = Int16((min(max(sample, -1), 1) * Float(Int16.max)).rounded())
+            withUnsafeBytes(of: value.littleEndian) { data.append(contentsOf: $0) }
+        }
+        return data
     }
 
     /// 16-bit PCM WAV, mono. Half the size of float samples, and every
@@ -59,9 +84,7 @@ public enum Server {
         append(UInt16(16))                  // bits per sample
         data.append(contentsOf: Array("data".utf8))
         append(dataSize)
-        for sample in samples {
-            append(Int16((min(max(sample, -1), 1) * Float(Int16.max)).rounded()))
-        }
+        data.append(pcm16(samples))
         return data
     }
 
@@ -88,5 +111,58 @@ public enum Server {
     public static func text(fromReply data: Data) -> String? {
         let reply = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         return reply?["text"] as? String
+    }
+}
+
+/// One message from the server on a stream.
+public enum StreamEvent: Equatable, Sendable {
+    /// The phrase being spoken, decoded again from its start. It replaces
+    /// the previous partial, and may change words that one had.
+    case partial(String)
+    /// A phrase the server closed after a pause. It will not change.
+    case final(String)
+    /// The whole transcript, after the client's `end`. The last message.
+    case done(String)
+    /// The server refused or failed. It closes the stream after this.
+    case error(String)
+
+    /// `{"type": "partial", "text": "…"}` and friends. Unknown types: nil.
+    public init?(json data: Data) {
+        guard let message = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let type = message["type"] as? String
+        else { return nil }
+        let text = message["text"] as? String ?? ""
+        switch type {
+        case "partial": self = .partial(text)
+        case "final": self = .final(text)
+        case "done": self = .done(text)
+        case "error": self = .error(message["message"] as? String ?? "unknown error")
+        default: return nil
+        }
+    }
+}
+
+/// What a stream has heard so far, for the preview: closed phrases, then
+/// the phrase still being spoken.
+public struct LiveTranscript: Equatable, Sendable {
+    public private(set) var finals: [String] = []
+    public private(set) var partial = ""
+
+    public init() {}
+
+    public mutating func apply(_ event: StreamEvent) {
+        switch event {
+        case .partial(let text):
+            partial = text
+        case .final(let text):
+            finals.append(text)
+            partial = ""
+        case .done, .error:
+            break
+        }
+    }
+
+    public var text: String {
+        (finals + [partial]).filter { !$0.isEmpty }.joined(separator: " ")
     }
 }

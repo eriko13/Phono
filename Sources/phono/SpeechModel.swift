@@ -126,6 +126,13 @@ final class SpeechModel {
         guard let engine else { throw SpeechError.notReady }
         return try await engine.transcribe(samples)
     }
+
+    /// A live stream for one dictation, when the engine is a server. This
+    /// Mac's model has no streaming mode: nil.
+    func openStream(onPreview: @escaping @Sendable (String) -> Void) -> ServerStream? {
+        guard let server = engine as? ServerEngine else { return nil }
+        return ServerStream(base: server.base, key: server.key, onPreview: onPreview)
+    }
 }
 
 enum SpeechError: Error, CustomStringConvertible {

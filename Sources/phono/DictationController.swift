@@ -32,6 +32,12 @@ final class DictationController {
     /// has been held this long, so ⌥← and quick taps stay invisible.
     private static let revealDelay: Duration = .milliseconds(250)
 
+    /// The live stream for the recording in progress, on a server.
+    private var stream: ServerStream?
+    /// Bumped by every recording, so a stream still finishing an older clip
+    /// cannot write its words over the new one's preview.
+    private var take = 0
+
     /// The trigger key is down right now.
     private var held = false
     /// The user has seen (and heard) that recording started.
@@ -125,15 +131,27 @@ final class DictationController {
             return
         }
 
+        take += 1
+        let take = self.take
+        let stream = speech.openStream { [weak self] text in
+            Task { @MainActor in self?.preview(text, take: take) }
+        }
+        var onSamples: (@Sendable ([Float]) -> Void)?
+        if let stream { onSamples = { stream.send($0) } }
+        stream?.start()
+
         let hud = self.hud
         do {
-            try recorder.start { level in
-                Task { @MainActor in hud.setLevel(level) }
-            }
+            try recorder.start(
+                onLevel: { level in Task { @MainActor in hud.setLevel(level) } },
+                onSamples: onSamples
+            )
         } catch {
+            stream?.close()
             hud.flash("Could not record: \(error)", symbol: "mic.slash")
             return
         }
+        self.stream = stream
         phase = .recording
 
         if quiet {
@@ -154,6 +172,13 @@ final class DictationController {
         hud.showListening()
     }
 
+    /// The words heard so far, while the key is held. Not before the pill
+    /// is revealed, and not once the clip is being transcribed.
+    private func preview(_ text: String, take: Int) {
+        guard take == self.take, revealed, phase != .idle else { return }
+        hud.showPreview(text)
+    }
+
     func finish() {
         guard phase == .recording else { return }
         // Released before the pill showed: a tap, not a dictation.
@@ -163,9 +188,11 @@ final class DictationController {
         Task {
             try? await Task.sleep(for: Self.postRoll)
             let samples = recorder.stop()
+            let stream = self.stream
+            self.stream = nil
             phase = .idle
             play(settings.stopSound)
-            await transcribe(samples)
+            await transcribe(samples, stream: stream)
         }
     }
 
@@ -175,6 +202,8 @@ final class DictationController {
         revealTask?.cancel()
         revealTask = nil
         _ = recorder.stop()
+        stream?.close()
+        stream = nil
         phase = .idle
         if revealed { hud.hide() }
         revealed = true
@@ -182,15 +211,16 @@ final class DictationController {
 
     // MARK: - Transcription
 
-    private func transcribe(_ samples: [Float]) async {
+    private func transcribe(_ samples: [Float], stream: ServerStream?) async {
         guard Model.duration(sampleCount: samples.count) >= Self.minimumSeconds else {
+            stream?.close()
             updateHUD { $0.hide() }
             return
         }
         updateHUD { $0.showWorking() }
 
         do {
-            let raw = try await speech.transcribe(samples)
+            let raw = try await text(of: samples, stream: stream)
             guard let text = Transcript.finalize(raw, appendSpace: settings.appendSpace) else {
                 updateHUD { $0.flash("No speech heard", symbol: "waveform.slash") }
                 return
@@ -212,6 +242,20 @@ final class DictationController {
             FileHandle.standardError.write(Data("[Dictation] \(error)\n".utf8))
             updateHUD { $0.flash("Transcription failed — \(error)") }
         }
+    }
+
+    /// The stream's transcript when it worked. If it failed (the server was
+    /// busy with another stream, say, or predates streaming), the whole clip
+    /// goes to the server once more, so the dictation is never lost.
+    private func text(of samples: [Float], stream: ServerStream?) async throws -> String {
+        if let stream {
+            do {
+                return try await stream.finish()
+            } catch {
+                FileHandle.standardError.write(Data("[Dictation] stream failed, sending the clip: \(error)\n".utf8))
+            }
+        }
+        return try await speech.transcribe(samples)
     }
 
     /// A new recording may start while an older clip is still transcribing.

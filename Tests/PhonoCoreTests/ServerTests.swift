@@ -18,6 +18,43 @@ final class ServerTests: XCTestCase {
                        "http://overmn:8000/v1/audio/transcriptions")
     }
 
+    func testStreamURL() {
+        XCTAssertEqual(Server.streamURL(URL(string: "http://overmn:8000")!).absoluteString,
+                       "ws://overmn:8000/v1/audio/stream")
+        XCTAssertEqual(Server.streamURL(URL(string: "https://box.example.ts.net")!).absoluteString,
+                       "wss://box.example.ts.net/v1/audio/stream")
+    }
+
+    func testPCM16() {
+        let pcm = Server.pcm16([0, 1, -1, 2])
+        XCTAssertEqual(pcm.count, 8)
+        XCTAssertEqual(Server.wav([0, 1, -1, 2]).suffix(8), pcm)
+    }
+
+    func testStreamEvents() {
+        func event(_ json: String) -> StreamEvent? { StreamEvent(json: Data(json.utf8)) }
+        XCTAssertEqual(event(#"{"type": "partial", "text": "The New"}"#), .partial("The New"))
+        XCTAssertEqual(event(#"{"type": "final", "text": "Hi.", "segment": 1}"#), .final("Hi."))
+        XCTAssertEqual(event(#"{"type": "done", "text": "Hi."}"#), .done("Hi."))
+        XCTAssertEqual(event(#"{"type": "error", "message": "engine busy"}"#), .error("engine busy"))
+        XCTAssertNil(event(#"{"type": "ping"}"#))
+        XCTAssertNil(event("not json"))
+    }
+
+    func testLiveTranscript() {
+        var live = LiveTranscript()
+        XCTAssertEqual(live.text, "")
+        live.apply(.partial("nineteen sixty one"))
+        live.apply(.partial("nineteen sixty nine."))
+        XCTAssertEqual(live.text, "nineteen sixty nine.")
+        live.apply(.final("Nineteen sixty nine."))
+        XCTAssertEqual(live.text, "Nineteen sixty nine.")
+        live.apply(.partial("Men walk"))
+        XCTAssertEqual(live.text, "Nineteen sixty nine. Men walk")
+        live.apply(.done("ignored"))
+        XCTAssertEqual(live.finals, ["Nineteen sixty nine."])
+    }
+
     func testWAV() {
         let wav = Server.wav([0, 1, -1, 2], sampleRate: 16_000)
         XCTAssertEqual(wav.count, 44 + 8)

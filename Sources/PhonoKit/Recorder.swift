@@ -29,9 +29,13 @@ public final class Recorder {
     public init() {}
 
     /// Open the microphone and start capturing. `onLevel` gets a 0–1 loudness
-    /// value for each audio buffer, on the audio thread.
-    public func start(onLevel: @escaping @Sendable (Float) -> Void) throws {
-        try open(onLevel: onLevel)
+    /// value for each audio buffer, and `onSamples` each captured buffer's
+    /// 16 kHz samples, on the audio thread.
+    public func start(
+        onLevel: @escaping @Sendable (Float) -> Void,
+        onSamples: (@Sendable ([Float]) -> Void)? = nil
+    ) throws {
+        try open(onLevel: onLevel, onSamples: onSamples)
         beginCapture()
     }
 
@@ -44,8 +48,12 @@ public final class Recorder {
     }
 
     /// Turn the microphone on without keeping any audio. `onLevel` gets a
-    /// 0–1 loudness value for each audio buffer, on the audio thread.
-    public func open(onLevel: @escaping @Sendable (Float) -> Void) throws {
+    /// 0–1 loudness value for each audio buffer, and `onSamples` each
+    /// captured buffer's 16 kHz samples, on the audio thread.
+    public func open(
+        onLevel: @escaping @Sendable (Float) -> Void,
+        onSamples: (@Sendable ([Float]) -> Void)? = nil
+    ) throws {
         guard engine == nil else { return }
 
         let engine = AVAudioEngine()
@@ -55,7 +63,7 @@ public final class Recorder {
             throw RecorderError.noInputDevice
         }
 
-        let sink = SampleSink(onLevel: onLevel)
+        let sink = SampleSink(onLevel: onLevel, onSamples: onSamples)
         input.installTap(onBus: 0, bufferSize: 1024, format: format, block: makeTapBlock(sink))
         engine.prepare()
         do {
@@ -111,9 +119,11 @@ final class SampleSink: @unchecked Sendable {
         interleaved: false
     )!
     private let onLevel: @Sendable (Float) -> Void
+    private let onSamples: (@Sendable ([Float]) -> Void)?
 
-    init(onLevel: @escaping @Sendable (Float) -> Void) {
+    init(onLevel: @escaping @Sendable (Float) -> Void, onSamples: (@Sendable ([Float]) -> Void)?) {
         self.onLevel = onLevel
+        self.onSamples = onSamples
         // About a minute of headroom before the array has to grow.
         samples.reserveCapacity(Int(Model.sampleRate) * 60)
     }
@@ -140,10 +150,12 @@ final class SampleSink: @unchecked Sendable {
         guard status != .error, let channel = output.floatChannelData?[0] else { return }
 
         let chunk = Array(UnsafeBufferPointer(start: channel, count: Int(output.frameLength)))
-        lock.withLock {
+        let kept = lock.withLock {
             if capturing { samples.append(contentsOf: chunk) }
+            return capturing
         }
         onLevel(Self.level(of: chunk))
+        if kept { onSamples?(chunk) }
     }
 
     var isCapturing: Bool {

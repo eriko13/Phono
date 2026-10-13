@@ -1,7 +1,8 @@
 import AppKit
 
 /// A small pill near the bottom of the screen: a live level meter while
-/// recording, a spinner while transcribing, or a short message.
+/// recording (with the words heard so far, when a server streams them), a
+/// spinner while transcribing, or a short message.
 ///
 /// It is a non-activating panel that ignores the mouse, so it never takes
 /// focus from the app the text is going into.
@@ -76,6 +77,12 @@ final class HUD {
         show(meter: true, spinner: false, symbol: nil, text: "Listening")
     }
 
+    /// Listening, with the words heard so far. When they do not fit, the
+    /// oldest give way, so the newest stay in view.
+    func showPreview(_ text: String) {
+        show(meter: true, spinner: false, symbol: nil, text: text, keepEnd: true)
+    }
+
     func setLevel(_ level: Float) {
         meter.push(CGFloat(level))
     }
@@ -101,10 +108,12 @@ final class HUD {
         panel.orderOut(nil)
     }
 
-    private func show(meter showMeter: Bool, spinner showSpinner: Bool, symbol: String?, text: String) {
+    private func show(meter showMeter: Bool, spinner showSpinner: Bool, symbol: String?, text: String,
+                      keepEnd: Bool = false) {
         hideTask?.cancel()
         hideTask = nil
 
+        label.lineBreakMode = keepEnd ? .byTruncatingHead : .byTruncatingTail
         meter.isHidden = !showMeter
         spinner.isHidden = !showSpinner
         if showSpinner { spinner.startAnimation(nil) } else { spinner.stopAnimation(nil) }
