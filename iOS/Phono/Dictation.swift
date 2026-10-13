@@ -49,22 +49,18 @@ final class Dictation {
             return
         }
         do {
-            let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.record, mode: .default)
-            try session.setActive(true)
-            try recorder.start { level in
-                Task { @MainActor [weak self] in self?.level = level }
-            }
-            state = .recording
+            try openMic()
         } catch {
-            deactivateSession()
             state = .failed("Could not record: \(error.localizedDescription)")
+            return
         }
+        recorder.beginCapture()
+        state = .recording
     }
 
     private func finish() async {
-        let samples = recorder.stop()
-        deactivateSession()
+        let samples = recorder.endCapture()
+        closeMic()
         level = 0
         guard Model.duration(sampleCount: samples.count) >= 0.3 else {
             state = .idle
@@ -90,6 +86,29 @@ final class Dictation {
         } catch {
             state = .failed(error.localizedDescription)
         }
+    }
+
+    private func openMic() throws {
+        guard !recorder.isOpen else { return }
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.record, mode: .default)
+            try session.setActive(true)
+            try recorder.open { level in
+                Task { @MainActor [weak self] in
+                    guard let self, self.state == .recording else { return }
+                    self.level = level
+                }
+            }
+        } catch {
+            deactivateSession()
+            throw error
+        }
+    }
+
+    private func closeMic() {
+        recorder.close()
+        deactivateSession()
     }
 
     /// Lets music or a podcast that the recording paused start again.

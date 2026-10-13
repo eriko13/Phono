@@ -21,13 +21,31 @@ public final class Recorder {
     private var engine: AVAudioEngine?
     private var sink: SampleSink?
 
-    public var isRecording: Bool { engine != nil }
+    /// The microphone is on. It may be on without capturing, so that a
+    /// capture can begin while the app is in the background.
+    public var isOpen: Bool { engine != nil }
+    public var isRecording: Bool { sink?.isCapturing ?? false }
 
     public init() {}
 
-    /// Start capturing. `onLevel` gets a 0–1 loudness value for each audio
-    /// buffer, on the audio thread.
+    /// Open the microphone and start capturing. `onLevel` gets a 0–1 loudness
+    /// value for each audio buffer, on the audio thread.
     public func start(onLevel: @escaping @Sendable (Float) -> Void) throws {
+        try open(onLevel: onLevel)
+        beginCapture()
+    }
+
+    /// Stop capturing, close the microphone, and return everything captured
+    /// since `start`.
+    public func stop() -> [Float] {
+        let samples = endCapture()
+        close()
+        return samples
+    }
+
+    /// Turn the microphone on without keeping any audio. `onLevel` gets a
+    /// 0–1 loudness value for each audio buffer, on the audio thread.
+    public func open(onLevel: @escaping @Sendable (Float) -> Void) throws {
         guard engine == nil else { return }
 
         let engine = AVAudioEngine()
@@ -50,14 +68,23 @@ public final class Recorder {
         self.sink = sink
     }
 
-    /// Stop and return everything captured since `start`.
-    public func stop() -> [Float] {
-        guard let engine, let sink else { return [] }
+    /// Start keeping audio. Does nothing if the microphone is not open.
+    public func beginCapture() {
+        sink?.beginCapture()
+    }
+
+    /// Stop keeping audio and return everything since `beginCapture`.
+    public func endCapture() -> [Float] {
+        sink?.endCapture() ?? []
+    }
+
+    /// Turn the microphone off. Audio not yet taken with `endCapture` is lost.
+    public func close() {
+        guard let engine else { return }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()
         self.engine = nil
         self.sink = nil
-        return sink.drain()
     }
 }
 
@@ -71,10 +98,11 @@ private func makeTapBlock(_ sink: SampleSink) -> AVAudioNodeTapBlock {
 /// Converts and stores samples on the audio thread.
 ///
 /// `append` runs only on the tap's thread, so `converter` needs no lock;
-/// `samples` is shared with `drain` (main thread) and is guarded.
+/// `samples` and `capturing` are shared with the main thread and are guarded.
 final class SampleSink: @unchecked Sendable {
     private let lock = NSLock()
     private var samples: [Float] = []
+    private var capturing = false
     private var converter: AVAudioConverter?
     private let format = AVAudioFormat(
         commonFormat: .pcmFormatFloat32,
@@ -112,14 +140,28 @@ final class SampleSink: @unchecked Sendable {
         guard status != .error, let channel = output.floatChannelData?[0] else { return }
 
         let chunk = Array(UnsafeBufferPointer(start: channel, count: Int(output.frameLength)))
-        lock.withLock { samples.append(contentsOf: chunk) }
+        lock.withLock {
+            if capturing { samples.append(contentsOf: chunk) }
+        }
         onLevel(Self.level(of: chunk))
     }
 
-    func drain() -> [Float] {
+    var isCapturing: Bool {
+        lock.withLock { capturing }
+    }
+
+    func beginCapture() {
+        lock.withLock {
+            samples = []
+            capturing = true
+        }
+    }
+
+    func endCapture() -> [Float] {
         lock.withLock {
             let out = samples
             samples = []
+            capturing = false
             return out
         }
     }
