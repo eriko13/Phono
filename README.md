@@ -94,6 +94,8 @@ Phono can send each clip to a Phonon server, such as a Linux machine on your tai
 
 3. Quit and reopen Phono. The menu shows **Phonon-2 on overmn**.
 
+With a server, the words show in the pill as you speak, and the final text is pasted when you let go. The preview may change a word or two as the server hears more; the pasted text is the server's final version. If the server is busy with another live stream, Phono sends the whole clip when you let go instead, as before.
+
 **Engine** in the menu switches between the server and this Mac. `phono server off` switches back from the command line. Use the server's short name (`overmn`) or its IP address: the app allows plain http only on the local network. The key is stored in Phono's preferences, in plain text. `phono transcribe` always runs on this Mac.
 
 ## Troubleshooting
