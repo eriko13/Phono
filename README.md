@@ -119,7 +119,7 @@ To dictate into any app, use the Talk button and the Phono keyboard:
 3. In any text field, switch to the Phono keyboard with the globe key.
 4. Press **Talk**, speak, and press it again. The text is typed where your cursor is.
 
-The Phono keyboard works like Apple's: suggestions and autocorrect in English and Spanish at once, hold a letter for its accents, and hold the space bar to move the cursor. You never switch apps. iOS does not let an app turn on the microphone from the background, except for a walkie-talkie: the Talk button starts Phono in the background, even after iOS has closed it. The keyboard has to be Phono's, because iOS does not let an app in the background put text on the clipboard.
+The Phono keyboard works like Apple's: suggestions and autocorrect in English and Spanish at once, swipe across the letters to type a word, hold a letter for its accents, and hold the space bar to move the cursor. You never switch apps. iOS does not let an app turn on the microphone from the background, except for a walkie-talkie: the Talk button starts Phono in the background, even after iOS has closed it. The keyboard has to be Phono's, because iOS does not let an app in the background put text on the clipboard.
 
 ## Troubleshooting
 
