@@ -39,6 +39,8 @@ final class TypingTests: XCTestCase {
         XCTAssertTrue(Typing.needsSpace(before: "Hello"))
         XCTAssertFalse(Typing.needsSpace(before: "Hello "))
         XCTAssertFalse(Typing.needsSpace(before: ""))
+        XCTAssertFalse(Typing.needsSpace(before: "Hola ¿"))
+        XCTAssertFalse(Typing.needsSpace(before: "See ("))
     }
 }
 

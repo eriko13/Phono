@@ -112,8 +112,9 @@ public enum Typing {
         c.isLetter || c == "'" || c == "’"
     }
 
-    /// Dictated text goes after a space, unless the cursor already follows one.
+    /// Dictated or swiped text goes after a space, unless the cursor already
+    /// follows one, or follows an opening mark such as ¿ or (.
     public static func needsSpace(before: String) -> Bool {
-        before.last.map { !$0.isWhitespace } ?? false
+        before.last.map { !$0.isWhitespace && !"¿¡([{“‘".contains($0) } ?? false
     }
 }

@@ -102,6 +102,40 @@ final class Suggester {
         return [typed] + candidates.prefix(2).map { Suggestion(text: $0) }
     }
 
+    /// The words a swipe most likely means, best first. `before` is the text
+    /// the word will follow, with its space. The spell checker offers the
+    /// candidates: completions of the first key and each key the finger
+    /// passed, most common first, in both languages.
+    func swipe(_ path: [Swipe.Point], layout: [Character: Swipe.Point], keyWidth: Double, before: String) -> [String] {
+        detectLanguage(before)
+        guard let start = path.first else { return [] }
+        let firsts = Swipe.keys(near: start, layout: layout, within: keyWidth * 0.8)
+        var seconds: [Character] = []
+        for key in Swipe.keys(along: path, layout: layout) where !seconds.contains(key) {
+            seconds.append(key)
+        }
+        let likely = Set(nextWords.predictions(after: Typing.previousWord(before: before), language: language).prefix(20))
+
+        var candidates: [Swipe.Candidate] = []
+        for (order, language) in languages.enumerated() {
+            // The other language's words count a little less.
+            let penalty = order == 0 ? 0 : 0.25
+            for first in firsts.prefix(3) {
+                for second in seconds.prefix(10) {
+                    let prefix = String([first, second])
+                    let words = [prefix].filter { isWord($0, in: language) }
+                        + (checker.completions(forPartialWordRange: range(prefix), in: prefix, language: language) ?? [])
+                            .prefix(150)
+                    for (rank, word) in words.enumerated() {
+                        let bonus = likely.contains(word.lowercased()) ? 0.3 : 0
+                        candidates.append(Swipe.Candidate(word, cost: 0.1 * log2(Double(rank + 1)) + penalty - bonus))
+                    }
+                }
+            }
+        }
+        return Swipe.rank(candidates, path: path, layout: layout, keyWidth: keyWidth)
+    }
+
     /// What space should put in place of `word`, if it is a typo, a
     /// contraction without its apostrophe, or a text replacement.
     func correction(for word: String) -> String? {
@@ -157,6 +191,11 @@ final class Suggester {
     private static func checkerLanguage(_ prefix: String, preferring best: String) -> String {
         let available = UITextChecker.availableLanguages
         return available.contains(best) ? best : available.first { $0.hasPrefix(prefix) } ?? best
+    }
+
+    private func isWord(_ word: String, in language: String) -> Bool {
+        checker.rangeOfMisspelledWord(in: word, range: range(word), startingAt: 0, wrap: false, language: language)
+            .location == NSNotFound
     }
 
     /// Not a word in any of the languages.

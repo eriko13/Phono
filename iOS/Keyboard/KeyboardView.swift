@@ -1,10 +1,12 @@
+import PhonoCore
 import UIKit
 
 /// The keys and the bar above them, drawn like Apple's keyboard.
 ///
 /// Touches are tracked by hand, so fast typing works as on Apple's keyboard:
 /// a character is typed when its finger lifts, or when the next finger lands,
-/// and a finger can slide to the character it meant. Holding a letter shows
+/// and a finger can slide to the character it meant. A longer slide across
+/// the letters is a swipe, for a whole word. Holding a letter shows
 /// its accents, and holding the space bar turns the keyboard into a trackpad
 /// that moves the cursor.
 final class KeyboardView: UIView {
@@ -31,6 +33,9 @@ final class KeyboardView: UIView {
     var onKey: (Key) -> Void = { _ in }
     /// Characters to move the cursor by, negative for left.
     var onCursor: (Int) -> Void = { _ in }
+    /// A finger swiped across the letters: its path, each letter key's
+    /// center, and a letter key's width.
+    var onSwipe: (_ path: [Swipe.Point], _ layout: [Character: Swipe.Point], _ keyWidth: Double) -> Void = { _, _, _ in }
 
     let bar = TopBar()
 
@@ -47,6 +52,11 @@ final class KeyboardView: UIView {
     /// The finger choosing an accent, its key, and the panel of accents.
     private var accents: (touch: UITouch, index: Int)?
     private let accentPanel = AccentPanel()
+    /// Where each finger landed.
+    private var starts: [UITouch: CGPoint] = [:]
+    /// The finger swiping a word, and where it has been.
+    private var swipe: (touch: UITouch, path: [CGPoint])?
+    private let trail = CAShapeLayer()
     /// The finger moving the cursor, and where it last moved it.
     private var trackpad: (touch: UITouch, x: CGFloat)?
     /// Points of finger travel per character, like Apple's.
@@ -62,6 +72,12 @@ final class KeyboardView: UIView {
         accentPanel.isUserInteractionEnabled = false
         accentPanel.isHidden = true
         addSubview(accentPanel)
+        trail.fillColor = nil
+        trail.lineWidth = 6
+        trail.lineCap = .round
+        trail.lineJoin = .round
+        trail.zPosition = 1
+        layer.addSublayer(trail)
         rebuildKeys()
     }
 
@@ -224,9 +240,10 @@ final class KeyboardView: UIView {
     // MARK: Touches
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard trackpad == nil, accents == nil else { return }
+        guard trackpad == nil, accents == nil, swipe == nil else { return }
         for touch in touches {
             guard let index = keyIndex(at: touch.location(in: self)) else { continue }
+            starts[touch] = touch.location(in: self)
             // Typing fast, the next finger lands before the last one lifts.
             for (other, otherIndex) in touchKeys where keyViews[otherIndex].key.isCharacter {
                 touchKeys[other] = nil
@@ -252,7 +269,15 @@ final class KeyboardView: UIView {
             accentPanel.select(at: accents.touch.location(in: accentPanel).x)
             return
         }
-        touches.forEach(slide)
+        if let swipe, touches.contains(swipe.touch) {
+            let points = (event?.coalescedTouches(for: swipe.touch) ?? [swipe.touch]).map { $0.location(in: self) }
+            self.swipe?.path += points
+            drawTrail()
+            return
+        }
+        for touch in touches where !beginSwipe(touch) {
+            slide(touch)
+        }
     }
 
     /// A finger on a character can slide to the one it meant.
@@ -268,6 +293,12 @@ final class KeyboardView: UIView {
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        touches.forEach { starts[$0] = nil }
+        if let swipe, touches.contains(swipe.touch) {
+            endSwipe()
+            onSwipe(swipe.path.map(Self.point), letterLayout(), Double(letterWidth))
+            return
+        }
         if let trackpad, touches.contains(trackpad.touch) {
             endTrackpad()
             return
@@ -293,6 +324,11 @@ final class KeyboardView: UIView {
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        touches.forEach { starts[$0] = nil }
+        if let swipe, touches.contains(swipe.touch) {
+            endSwipe()
+            return
+        }
         if let trackpad, touches.contains(trackpad.touch) {
             endTrackpad()
             return
@@ -339,6 +375,8 @@ final class KeyboardView: UIView {
         stopHold()
         if trackpad != nil { endTrackpad() }
         if accents != nil { endAccents() }
+        if swipe != nil { endSwipe() }
+        starts = [:]
         hidePopup()
     }
 
@@ -406,6 +444,60 @@ final class KeyboardView: UIView {
     private func endAccents() {
         accents = nil
         accentPanel.isHidden = true
+    }
+
+    // MARK: Swipe
+
+    /// A lone finger that leaves its letter by more than a key and a half
+    /// swipes a word, like Apple's QuickPath. Shorter slides pick a
+    /// neighboring letter.
+    private func beginSwipe(_ touch: UITouch) -> Bool {
+        guard configuration.page == .letters, touchKeys.count == 1,
+              let index = touchKeys[touch], keyViews[index].key.isCharacter,
+              let start = starts[touch]
+        else { return false }
+        let point = touch.location(in: self)
+        guard hypot(point.x - start.x, point.y - start.y) > letterWidth * 1.5 else { return false }
+        stopHold()
+        hidePopup()
+        touchKeys = [:]
+        refresh(index)
+        swipe = (touch, [start, point])
+        drawTrail()
+        return true
+    }
+
+    private func endSwipe() {
+        swipe = nil
+        trail.path = nil
+    }
+
+    private func drawTrail() {
+        guard let points = swipe?.path, let first = points.first else { return }
+        let path = UIBezierPath()
+        path.move(to: first)
+        points.dropFirst().forEach(path.addLine)
+        trail.strokeColor = UIColor.systemBlue.withAlphaComponent(0.5).resolvedColor(with: traitCollection).cgColor
+        trail.path = path.cgPath
+    }
+
+    /// Each letter's key center.
+    private func letterLayout() -> [Character: Swipe.Point] {
+        var layout: [Character: Swipe.Point] = [:]
+        for view in keyViews {
+            guard case .character(let text) = view.key, text.count == 1, let letter = text.first, letter.isLetter
+            else { continue }
+            layout[letter] = Self.point(CGPoint(x: view.frame.midX, y: view.frame.midY))
+        }
+        return layout
+    }
+
+    private var letterWidth: CGFloat {
+        keyViews.first { $0.key.isCharacter }?.frame.width ?? 30
+    }
+
+    private static func point(_ point: CGPoint) -> Swipe.Point {
+        Swipe.Point(x: Double(point.x), y: Double(point.y))
     }
 
     // MARK: Trackpad

@@ -16,6 +16,9 @@ final class KeyboardViewController: UIInputViewController {
     private let suggester = Suggester()
     /// The last fix space made, so that delete right after can undo it.
     private var lastCorrection: (typed: String, fixed: String, end: String)?
+    /// The word just swiped, and the others it could have been, for the bar.
+    /// Delete right after takes the whole word.
+    private var lastSwipe: (word: String, alternatives: [String])?
 
     override func loadView() {
         view = ClickingInputView(frame: .zero, inputViewStyle: .keyboard)
@@ -26,6 +29,9 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.onKey = { [weak self] key in self?.perform(key) }
         keyboard.onCursor = { [weak self] offset in
             self?.textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
+        }
+        keyboard.onSwipe = { [weak self] path, layout, keyWidth in
+            self?.swiped(path, layout: layout, keyWidth: keyWidth)
         }
         keyboard.bar.onChoose = { [weak self] suggestion in self?.choose(suggestion) }
         // The reply comes on a background queue. A main-actor closure here
@@ -112,16 +118,19 @@ final class KeyboardViewController: UIInputViewController {
         var configuration = keyboard.configuration
         let correction = lastCorrection
         lastCorrection = nil
+        let swipe = lastSwipe
+        lastSwipe = nil
         switch key {
         case .character(let text):
-            if Self.wordEnds.contains(text) { endWord(with: text) }
+            // A swiped word was learned when it was typed.
+            if Self.wordEnds.contains(text), swipe == nil { endWord(with: text) }
             let letters = configuration.page == .letters
             proxy.insertText(letters && configuration.shift != .off ? text.uppercased() : text)
             if configuration.shift == .once { configuration.shift = .off }
             // As on Apple's keyboard, an apostrophe goes back to the letters.
             if !letters && text == "'" { configuration.page = .letters }
         case .space:
-            endWord(with: " ")
+            if swipe == nil { endWord(with: " ") }
             // Two spaces after a word end the sentence.
             let before = proxy.documentContextBeforeInput ?? ""
             if Typing.spaceEndsSentence(after: before, lastKeyWasSpace: lastKey == .space) {
@@ -135,7 +144,9 @@ final class KeyboardViewController: UIInputViewController {
             proxy.insertText("\n")
         case .delete:
             let before = proxy.documentContextBeforeInput ?? ""
-            if let correction, before.hasSuffix(correction.fixed + correction.end) {
+            if let swipe, before.hasSuffix(swipe.word) {
+                for _ in 0 ..< swipe.word.count { proxy.deleteBackward() }
+            } else if let correction, before.hasSuffix(correction.fixed + correction.end) {
                 // Undo the fix: back to what was typed, and keep it.
                 for _ in 0 ..< (correction.fixed + correction.end).count { proxy.deleteBackward() }
                 proxy.insertText(correction.typed)
@@ -192,7 +203,30 @@ final class KeyboardViewController: UIInputViewController {
         suggester.learn(suggestion.text, before: String(before.dropLast(word.count)))
         lastKey = nil
         lastCorrection = nil
+        lastSwipe = nil
         keyboard.configuration.page = .letters
+        update()
+    }
+
+    /// Types the word a swipe most likely meant, after a space if needed.
+    private func swiped(_ path: [Swipe.Point], layout: [Character: Swipe.Point], keyWidth: Double) {
+        let proxy = textDocumentProxy
+        let before = proxy.documentContextBeforeInput ?? ""
+        let space = Typing.needsSpace(before: before) ? " " : ""
+        let shift = keyboard.configuration.shift
+        let words = suggester.swipe(path, layout: layout, keyWidth: keyWidth, before: before + space).map { word in
+            switch shift {
+            case .off: word
+            case .once: word.prefix(1).uppercased() + word.dropFirst()
+            case .locked: word.uppercased()
+            }
+        }
+        guard let word = words.first else { return }
+        proxy.insertText(space + word)
+        suggester.learn(word, before: before + space)
+        lastSwipe = (word, Array(words.dropFirst()))
+        lastKey = nil
+        lastCorrection = nil
         update()
     }
 
@@ -235,8 +269,15 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func barSuggestions() -> [Suggestion] {
-        guard autocorrects else { return [] }
         let proxy = textDocumentProxy
+        // After a swipe, the other words it could have been, the likeliest
+        // in the middle.
+        if let lastSwipe, (proxy.documentContextBeforeInput ?? "").hasSuffix(lastSwipe.word) {
+            let words = lastSwipe.alternatives.prefix(3)
+            let ordered = words.count == 3 ? [words[1], words[0], words[2]] : Array(words)
+            return ordered.map { Suggestion(text: $0) }
+        }
+        guard autocorrects else { return [] }
         return suggester.suggestions(
             before: proxy.documentContextBeforeInput ?? "",
             after: proxy.documentContextAfterInput ?? "",
