@@ -18,6 +18,9 @@ final class KeyboardViewController: UIInputViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         keyboard.onKey = { [weak self] key in self?.perform(key) }
+        keyboard.onCursor = { [weak self] offset in
+            self?.textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
+        }
         keyboard.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(keyboard)
         let height = view.heightAnchor.constraint(equalToConstant: 260)
@@ -52,6 +55,11 @@ final class KeyboardViewController: UIInputViewController {
 
     override func textDidChange(_ textInput: (any UITextInput)?) {
         super.textDidChange(textInput)
+        update()
+    }
+
+    override func selectionDidChange(_ textInput: (any UITextInput)?) {
+        super.selectionDidChange(textInput)
         update()
     }
 

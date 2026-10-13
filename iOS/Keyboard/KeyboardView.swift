@@ -4,7 +4,8 @@ import UIKit
 ///
 /// Touches are tracked by hand, so fast typing works as on Apple's keyboard:
 /// a character is typed when its finger lifts, or when the next finger lands,
-/// and a finger can slide to the character it meant.
+/// and a finger can slide to the character it meant. Holding the space bar
+/// turns the keyboard into a trackpad that moves the cursor.
 final class KeyboardView: UIView {
     struct Configuration: Equatable {
         var page: Page = .letters
@@ -27,6 +28,8 @@ final class KeyboardView: UIView {
     }
 
     var onKey: (Key) -> Void = { _ in }
+    /// Characters to move the cursor by, negative for left.
+    var onCursor: (Int) -> Void = { _ in }
 
     let bar = TopBar()
 
@@ -37,6 +40,11 @@ final class KeyboardView: UIView {
     private let popup = PopupView()
     private var popupIndex: Int?
     private var deleteTimer: Timer?
+    private var holdTimer: Timer?
+    /// The finger moving the cursor, and where it last moved it.
+    private var trackpad: (touch: UITouch, x: CGFloat)?
+    /// Points of finger travel per character, like Apple's.
+    private static let trackpadStep: CGFloat = 9
 
     init() {
         super.init(frame: .zero)
@@ -207,6 +215,7 @@ final class KeyboardView: UIView {
     // MARK: Touches
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        guard trackpad == nil else { return }
         for touch in touches {
             guard let index = keyIndex(at: touch.location(in: self)) else { continue }
             // Typing fast, the next finger lands before the last one lifts.
@@ -216,10 +225,20 @@ final class KeyboardView: UIView {
             }
             touchKeys[touch] = index
             press(index)
+            if keyViews[index].key == .space { startHold(touch) }
         }
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if let trackpad, touches.contains(trackpad.touch) {
+            let x = trackpad.touch.location(in: self).x
+            let steps = Int((x - trackpad.x) / Self.trackpadStep)
+            if steps != 0 {
+                self.trackpad?.x += CGFloat(steps) * Self.trackpadStep
+                onCursor(steps)
+            }
+            return
+        }
         for touch in touches {
             guard let index = touchKeys[touch], keyViews[index].key.isCharacter,
                   let now = keyIndex(at: touch.location(in: self)), now != index,
@@ -231,6 +250,10 @@ final class KeyboardView: UIView {
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if let trackpad, touches.contains(trackpad.touch) {
+            endTrackpad()
+            return
+        }
         for touch in touches {
             guard let index = touchKeys.removeValue(forKey: touch) else { continue }
             switch keyViews[index].key {
@@ -246,6 +269,10 @@ final class KeyboardView: UIView {
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        if let trackpad, touches.contains(trackpad.touch) {
+            endTrackpad()
+            return
+        }
         for touch in touches {
             guard let index = touchKeys.removeValue(forKey: touch) else { continue }
             release(index, typing: false)
@@ -272,6 +299,7 @@ final class KeyboardView: UIView {
     private func release(_ index: Int, typing: Bool) {
         let key = keyViews[index].key
         if key == .delete { stopDeleteRepeat() }
+        if key == .space { stopHold() }
         if popupIndex == index { hidePopup() }
         refresh(index)
         if typing { onKey(key) }
@@ -280,6 +308,8 @@ final class KeyboardView: UIView {
     private func cancelTouches() {
         touchKeys = [:]
         stopDeleteRepeat()
+        stopHold()
+        if trackpad != nil { endTrackpad() }
         hidePopup()
     }
 
@@ -294,6 +324,39 @@ final class KeyboardView: UIView {
             return index
         }
         return indices.last
+    }
+
+    // MARK: Trackpad
+
+    private func startHold(_ touch: UITouch) {
+        holdTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: false) { [weak self] _ in
+            MainActor.assumeIsolated { self?.beginTrackpad(touch) }
+        }
+    }
+
+    private func stopHold() {
+        holdTimer?.invalidate()
+        holdTimer = nil
+    }
+
+    private func beginTrackpad(_ touch: UITouch) {
+        holdTimer = nil
+        guard let index = touchKeys[touch], keyViews[index].key == .space else { return }
+        // Only this finger counts from now on.
+        touchKeys = [:]
+        hidePopup()
+        trackpad = (touch, touch.location(in: self).x)
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        keyViews.forEach { $0.isBlank = true }
+        keyViews.indices.forEach(refresh)
+        bar.alpha = 0
+    }
+
+    private func endTrackpad() {
+        trackpad = nil
+        keyViews.forEach { $0.isBlank = false }
+        keyViews.indices.forEach(refresh)
+        bar.alpha = 1
     }
 
     // MARK: Delete
@@ -320,6 +383,14 @@ private final class KeyView: UIView {
     let key: Key
     var onActivate: () -> Void = {}
     private(set) var title: String?
+    /// While the space bar moves the cursor, the keys show nothing, as on
+    /// Apple's keyboard.
+    var isBlank = false {
+        didSet {
+            label.alpha = isBlank ? 0 : 1
+            icon.alpha = isBlank ? 0 : 1
+        }
+    }
 
     private let shadow = UIView()
     private let face = UIView()
