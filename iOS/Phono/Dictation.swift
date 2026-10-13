@@ -140,6 +140,14 @@ final class Dictation {
             closeMic()
         }
         level = 0
+        await transcribe(samples)
+        // The session may have ended while the clip was transcribing.
+        if !keyboardSession { closeMic() }
+    }
+
+    /// Sends the clip to the server, then hands the text to the keyboard or
+    /// copies it.
+    private func transcribe(_ samples: [Float]) async {
         guard Model.duration(sampleCount: samples.count) >= 0.3 else {
             state = .idle
             return
@@ -169,8 +177,6 @@ final class Dictation {
         } catch {
             state = .failed(error.localizedDescription)
         }
-        // The session may have ended while the clip was transcribing.
-        if !keyboardSession { closeMic() }
     }
 
     private func restartIdleTimer() {
@@ -211,15 +217,20 @@ final class Dictation {
                 try session.setCategory(.record, mode: .default)
             }
             try session.setActive(true)
-            try recorder.open { level in
-                Task { @MainActor [weak self] in
-                    guard let self, self.state == .recording else { return }
-                    self.level = level
-                }
-            }
+            try openRecorder()
         } catch {
             deactivateSession()
             throw error
+        }
+    }
+
+    /// Needs an active audio session.
+    private func openRecorder() throws {
+        try recorder.open { level in
+            Task { @MainActor [weak self] in
+                guard let self, self.state == .recording else { return }
+                self.level = level
+            }
         }
     }
 
