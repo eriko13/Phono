@@ -41,6 +41,8 @@ final class KeyboardView: UIView {
     private var popupIndex: Int?
     private var deleteTimer: Timer?
     private var holdTimer: Timer?
+    /// The key `holdTimer` waits on.
+    private var holdIndex: Int?
     /// The finger moving the cursor, and where it last moved it.
     private var trackpad: (touch: UITouch, x: CGFloat)?
     /// Points of finger travel per character, like Apple's.
@@ -225,7 +227,9 @@ final class KeyboardView: UIView {
             }
             touchKeys[touch] = index
             press(index)
-            if keyViews[index].key == .space { startHold(touch) }
+            if keyViews[index].key == .space {
+                startHold(index, after: 0.35) { [weak self] in self?.beginTrackpad(touch) }
+            }
         }
     }
 
@@ -299,7 +303,7 @@ final class KeyboardView: UIView {
     private func release(_ index: Int, typing: Bool) {
         let key = keyViews[index].key
         if key == .delete { stopDeleteRepeat() }
-        if key == .space { stopHold() }
+        if holdIndex == index { stopHold() }
         if popupIndex == index { hidePopup() }
         refresh(index)
         if typing { onKey(key) }
@@ -328,19 +332,24 @@ final class KeyboardView: UIView {
 
     // MARK: Trackpad
 
-    private func startHold(_ touch: UITouch) {
-        holdTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: false) { [weak self] _ in
-            MainActor.assumeIsolated { self?.beginTrackpad(touch) }
+    /// Runs `action` if the key at `index` is still down after `delay`
+    /// seconds.
+    private func startHold(_ index: Int, after delay: TimeInterval, _ action: @escaping @MainActor () -> Void) {
+        stopHold()
+        holdIndex = index
+        holdTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { _ in
+            MainActor.assumeIsolated { action() }
         }
     }
 
     private func stopHold() {
         holdTimer?.invalidate()
         holdTimer = nil
+        holdIndex = nil
     }
 
     private func beginTrackpad(_ touch: UITouch) {
-        holdTimer = nil
+        stopHold()
         guard let index = touchKeys[touch], keyViews[index].key == .space else { return }
         // Only this finger counts from now on.
         touchKeys = [:]
