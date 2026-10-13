@@ -30,9 +30,14 @@ final class Dictation {
     private(set) var keyboardSession = false
 
     let settings = Settings(store: .standard)
+    /// Its Talk button records with the app in the background.
+    let talk = TalkChannel()
     private let recorder = Recorder()
     /// The clip being recorded came from the keyboard, so its text goes there.
     private var forKeyboard = false
+    /// The clip being recorded came from the Talk button. The system owns the
+    /// audio session, and the app may be in the background.
+    private var fromTalk = false
     private var idleTimer: Task<Void, Never>?
 
     /// The keyboard session ends this long after the last clip.
@@ -54,6 +59,11 @@ final class Dictation {
             guard type == AVAudioSession.InterruptionType.began.rawValue else { return }
             MainActor.assumeIsolated { self?.endKeyboardSession() }
         }
+        talk.onActivate = { [weak self] in self?.talkActivated() }
+        talk.onEnd = { [weak self] in
+            Task { await self?.talkEnded() }
+        }
+        Task { await talk.start() }
         KeyboardLink.publish(.off, error: nil)
     }
 
@@ -170,13 +180,49 @@ final class Dictation {
             transcripts = Array(transcripts.prefix(10))
             if forKeyboard {
                 KeyboardLink.send(text)
-            } else {
+            }
+            // The Phono keyboard may not be showing.
+            if !forKeyboard || fromTalk {
                 copy(text)
             }
             state = .idle
         } catch {
             state = .failed(error.localizedDescription)
         }
+    }
+
+    // MARK: Talk button
+
+    private func talkActivated() {
+        guard state != .recording, state != .transcribing else { return }
+        do {
+            if !recorder.isOpen { try openRecorder() }
+        } catch {
+            state = .failed("Could not record: \(error.localizedDescription)")
+            return
+        }
+        fromTalk = true
+        forKeyboard = true
+        idleTimer?.cancel()
+        recorder.beginCapture()
+        state = .recording
+        publish()
+    }
+
+    private func talkEnded() async {
+        guard fromTalk, state == .recording else { return }
+        let samples = recorder.endCapture()
+        // The system deactivates the session.
+        if keyboardSession { restartIdleTimer() } else { recorder.close() }
+        level = 0
+        // iOS suspends the app soon after the Talk press ends.
+        let task = UIApplication.shared.beginBackgroundTask()
+        state = .transcribing
+        publish()
+        await transcribe(samples)
+        fromTalk = false
+        publish()
+        UIApplication.shared.endBackgroundTask(task)
     }
 
     private func restartIdleTimer() {
@@ -193,7 +239,7 @@ final class Dictation {
     private func publish() {
         let shared: KeyboardLink.State
         var error: String?
-        switch (keyboardSession, state) {
+        switch (keyboardSession || fromTalk, state) {
         case (false, _): shared = .off
         case (true, .recording): shared = .recording
         case (true, .transcribing): shared = .transcribing

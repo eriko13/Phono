@@ -4,6 +4,7 @@ import SwiftUI
 
 struct SettingsView: View {
     let settings: Settings
+    let talk: TalkChannel
     @Environment(\.dismiss) private var dismiss
     @State private var url = ""
     @State private var key = ""
@@ -51,6 +52,20 @@ struct SettingsView: View {
                     Text("Keyboard")
                 } footer: {
                     Text("Under **Keyboards**, turn on Phono and Allow Full Access. The keyboard needs full access to talk to this app. It sends nothing anywhere else.")
+                }
+
+                Section {
+                    Toggle("Talk button", isOn: Binding(
+                        get: { talk.isJoined },
+                        set: { $0 ? talk.join() : talk.leave() }
+                    ))
+                    if let error = talk.error {
+                        Text(error).foregroundStyle(.red)
+                    }
+                } header: {
+                    Text("Experimental")
+                } footer: {
+                    Text("Adds a walkie-talkie Talk button to the status bar. It records without opening Phono, even after iOS closes the app. The text goes to the Phono keyboard if it is showing, and to the clipboard.")
                 }
             }
             .navigationTitle("Settings")

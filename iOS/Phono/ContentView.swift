@@ -20,7 +20,7 @@ struct ContentView: View {
                 Button("Settings", systemImage: "gearshape") { showsSettings = true }
             }
             .sheet(isPresented: $showsSettings) {
-                SettingsView(settings: dictation.settings)
+                SettingsView(settings: dictation.settings, talk: dictation.talk)
             }
             .onAppear {
                 if !dictation.hasServer { showsSettings = true }

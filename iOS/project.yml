@@ -19,6 +19,8 @@ targets:
       path: Phono/Phono.entitlements
       properties:
         com.apple.security.application-groups: [group.io.github.eriko13.phono]
+        com.apple.developer.push-to-talk: true
+        aps-environment: development
     info:
       path: Phono/Info.plist
       properties:
@@ -27,7 +29,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSMicrophoneUsageDescription: Phono records what you say and sends it to your Phonon server to turn it into text.
         UILaunchScreen: {}
-        UIBackgroundModes: [audio]
+        UIBackgroundModes: [audio, push-to-talk]
         CFBundleURLTypes:
           - CFBundleURLName: io.github.eriko13.phono.ios
             CFBundleURLSchemes: [phono]
