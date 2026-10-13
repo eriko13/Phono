@@ -42,6 +42,16 @@ struct SettingsView: View {
                     case .failed(let message): Label(message, systemImage: "xmark.circle").foregroundStyle(.red)
                     }
                 }
+
+                Section {
+                    Button("Open Phono in Settings") {
+                        UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!)
+                    }
+                } header: {
+                    Text("Keyboard")
+                } footer: {
+                    Text("Under **Keyboards**, turn on Phono and Allow Full Access. The keyboard needs full access to talk to this app. It sends nothing anywhere else.")
+                }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)

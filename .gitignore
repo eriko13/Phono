@@ -5,3 +5,5 @@ build/
 # Made by xcodegen from iOS/project.yml.
 iOS/Phono.xcodeproj/
 iOS/Phono/Info.plist
+iOS/Keyboard/Info.plist
+iOS/*/*.entitlements

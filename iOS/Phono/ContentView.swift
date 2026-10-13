@@ -7,6 +7,7 @@ struct ContentView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                if dictation.keyboardSession { keyboardBanner }
                 transcripts
                 status
                 RecordButton(state: dictation.state, level: dictation.level) {
@@ -35,13 +36,13 @@ struct ContentView: View {
                 description: Text("Tap the button, speak, and tap again. The text is copied for you.")
             )
         } else {
-            List(Array(dictation.transcripts.enumerated()), id: \.offset) { index, text in
+            List(Array(dictation.transcripts.enumerated()), id: \.offset) { _, text in
                 Button {
                     dictation.copy(text)
                 } label: {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(text).foregroundStyle(.primary)
-                        if index == 0 {
+                        if text == dictation.copied {
                             Text("Copied").font(.caption).foregroundStyle(.secondary)
                         }
                     }
@@ -49,6 +50,23 @@ struct ContentView: View {
             }
             .listStyle(.plain)
         }
+    }
+
+    private var keyboardBanner: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Keyboard is on", systemImage: "keyboard").font(.headline)
+                Text("Go back to your app and talk. The microphone turns off 5 minutes after your last clip.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("Turn off") { dictation.endKeyboardSession() }
+                .buttonStyle(.bordered)
+        }
+        .padding()
+        .background(.tint.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+        .padding(.horizontal)
     }
 
     private var status: some View {

@@ -25,9 +25,22 @@ HotkeyManager ─► DictationController ─► Recorder (16 kHz mono)
 - **ServerStream** streams one dictation to a Phonon server's `/v1/audio/stream` while the shortcut is held: 16-bit PCM out as the Recorder hears it, and the server's partial and final text back for the HUD's preview. On release it sends `end` and pastes the server's `done` transcript. If the stream fails at any point (the server serves one stream at a time, and older servers have none), DictationController sends the whole clip to `/v1/audio/transcriptions` instead. The local engine has no stream, so it shows no preview.
 - **HotkeyManager** registers key combinations with Carbon. A lone modifier (⌥, fn) cannot be registered that way, so it watches global key events instead, which needs Accessibility. `ModifierTriggerState` decides what counts as a press: if another key, modifier, or click joins, the press is interrupted and the audio discarded.
 - **DictationController** records from the first instant of a lone-modifier press, but shows the HUD and plays the sound only after 250 ms, so quick taps and ⌥← stay invisible.
-- **Recorder** converts to 16 kHz mono on the audio thread. Its tap closure is built outside the main actor, because Swift 6 traps when the audio thread calls a main-actor closure.
+- **Recorder** converts to 16 kHz mono on the audio thread. It can keep the microphone open without keeping audio (`open`, then `beginCapture` and `endCapture` per clip), which the iPhone keyboard needs. Its tap closure is built outside the main actor, because Swift 6 traps when the audio thread calls a main-actor closure.
 - **Paster** has two ways to insert text. Paste saves the clipboard, writes the text, posts ⌘V, and restores the clipboard 600 ms later unless something else changed it. Type posts one key event per character, with the character attached, and does not touch the clipboard. A second text waits until the first is typed.
 - **StatusItemController** builds the menu from `MenuItem`s, whose title, checkmark, and visibility are closures. One `refresh()` updates them all.
+
+## iPhone app and keyboard
+
+`iOS/project.yml` makes an Xcode project with XcodeGen. The app links PhonoCore and PhonoKit and always uses a Phonon server.
+
+A keyboard extension cannot use the microphone, so the app records for it:
+
+1. The keyboard's mic button opens `phono://dictate`. The app turns the microphone on and starts a clip.
+2. The user goes back to the other app. The microphone stays open in the background (the `audio` background mode), because iOS does not let an app turn it on from there.
+3. Each later tap posts a `toggle` Darwin notification. The app starts or stops a clip, transcribes it, and writes the state and the text to the `group.io.github.eriko13.phono` App Group defaults, then posts `changed`. The keyboard reads them and inserts the text.
+4. The app closes the microphone 5 minutes after the last clip, or when a call interrupts it.
+
+`KeyboardLink` in `iOS/Shared` is the whole protocol, compiled into both targets. When the keyboard appears, it posts `ping`; if the app does not answer, the next tap opens the app again. The keyboard needs Full Access to use the App Group. It does not touch the network.
 
 ## Model
 

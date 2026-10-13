@@ -10,10 +10,15 @@ targets:
   Phono:
     type: application
     platform: iOS
-    sources: [Phono]
+    sources: [Phono, Shared]
     dependencies:
       - package: Phono
         products: [PhonoCore, PhonoKit]
+      - target: PhonoKeyboard
+    entitlements:
+      path: Phono/Phono.entitlements
+      properties:
+        com.apple.security.application-groups: [group.io.github.eriko13.phono]
     info:
       path: Phono/Info.plist
       properties:
@@ -22,6 +27,10 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSMicrophoneUsageDescription: Phono records what you say and sends it to your Phonon server to turn it into text.
         UILaunchScreen: {}
+        UIBackgroundModes: [audio]
+        CFBundleURLTypes:
+          - CFBundleURLName: io.github.eriko13.phono.ios
+            CFBundleURLSchemes: [phono]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
     settings:
       base:
@@ -33,3 +42,34 @@ targets:
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+  PhonoKeyboard:
+    type: app-extension
+    platform: iOS
+    sources: [Keyboard, Shared]
+    entitlements:
+      path: Keyboard/Keyboard.entitlements
+      properties:
+        com.apple.security.application-groups: [group.io.github.eriko13.phono]
+    info:
+      path: Keyboard/Info.plist
+      properties:
+        CFBundleDisplayName: Phono
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.keyboard-service
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).KeyboardViewController
+          NSExtensionAttributes:
+            IsASCIICapable: false
+            PrefersRightToLeft: false
+            PrimaryLanguage: en-US
+            RequestsOpenAccess: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.github.eriko13.phono.ios.keyboard
+        DEVELOPMENT_TEAM: Z3JJYD8Y48
+        CODE_SIGN_STYLE: Automatic
+        MARKETING_VERSION: 0.2.0
+        CURRENT_PROJECT_VERSION: 1
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1"
