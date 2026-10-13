@@ -12,7 +12,7 @@ Phono runs [Phonon-2](https://huggingface.co/FermionResearch/Phonon-2), an Engli
 
 | | Phono | Detta 1.0.26 |
 |---|---|---|
-| Size on disk | about 350 MB | 1.3 GB |
+| Download and install | 345 MB model, 0.4 MB app | 1.3 GB app |
 | What it installs | the app and Phonon-2 | the app, Phonon-2, Python 3.12 with 45 packages, and a second AI model for text clean-up |
 | Account | none | Google sign-in |
 | Your recordings | never leave your Mac | shared with Fermion by default, unless you turn it off |
@@ -20,7 +20,7 @@ Phono runs [Phonon-2](https://huggingface.co/FermionResearch/Phonon-2), an Engli
 | macOS | 15 or later | 26.2 or later |
 | Source | about 1,700 lines of Swift, MIT | closed |
 
-Both apps run the same Phonon-2 model file on the Neural Engine, so the accuracy is the same: 5.21% word error on the Open ASR Leaderboard. To compare memory on your own Mac, open both apps and run `./Scripts/stats.sh Detta`.
+Both apps run the same Phonon-2 model file on the Neural Engine, so the accuracy is the same: 5.21% word error on the Open ASR Leaderboard. On the first launch, Core ML also stores a compiled copy of the model for your Mac. For Phono it is about 300 MB. To compare disk and memory on your own Mac, open both apps and run `./Scripts/stats.sh Detta`.
 
 ## Requirements
 
