@@ -45,6 +45,9 @@ targets:
     type: app-extension
     platform: iOS
     sources: [Keyboard, Shared]
+    dependencies:
+      - package: Phono
+        products: [PhonoCore]
     entitlements:
       path: Keyboard/Keyboard.entitlements
       properties:

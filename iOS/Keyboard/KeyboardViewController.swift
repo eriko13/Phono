@@ -1,3 +1,4 @@
+import PhonoCore
 import UIKit
 
 /// The Phono keyboard: a keyboard like Apple's that also types what the
@@ -72,8 +73,7 @@ final class KeyboardViewController: UIInputViewController {
 
     private func insert(_ text: String) {
         let before = textDocumentProxy.documentContextBeforeInput ?? ""
-        let needsSpace = before.last.map { !$0.isWhitespace } ?? false
-        textDocumentProxy.insertText(needsSpace ? " " + text : text)
+        textDocumentProxy.insertText(Typing.needsSpace(before: before) ? " " + text : text)
     }
 
     // MARK: Keys
@@ -91,8 +91,7 @@ final class KeyboardViewController: UIInputViewController {
         case .space:
             // Two spaces after a word end the sentence.
             let before = proxy.documentContextBeforeInput ?? ""
-            if lastKey == .space, before.hasSuffix(" "),
-               before.dropLast().last.map({ $0.isLetter || $0.isNumber }) == true {
+            if Typing.spaceEndsSentence(after: before, lastKeyWasSpace: lastKey == .space) {
                 proxy.deleteBackward()
                 proxy.insertText(". ")
             } else {
@@ -155,23 +154,14 @@ final class KeyboardViewController: UIInputViewController {
 
     /// Whether the next letter starts a sentence or word, as the field asks.
     private var capitalizes: Bool {
-        let before = textDocumentProxy.documentContextBeforeInput ?? ""
-        switch textDocumentProxy.autocapitalizationType ?? .sentences {
-        case .none:
-            return false
-        case .allCharacters:
-            return true
-        case .words:
-            return before.last.map(\.isWhitespace) ?? true
-        case .sentences:
-            guard let last = before.last else { return true }
-            if last.isNewline { return true }
-            guard last == " " else { return false }
-            guard let end = before.last(where: { $0 != " " }) else { return true }
-            return ".!?".contains(end) || end.isNewline
-        @unknown default:
-            return false
+        let mode: Typing.Capitalization = switch textDocumentProxy.autocapitalizationType ?? .sentences {
+        case .none: .none
+        case .words: .words
+        case .sentences: .sentences
+        case .allCharacters: .allCharacters
+        @unknown default: .none
         }
+        return Typing.capitalizes(after: textDocumentProxy.documentContextBeforeInput ?? "", mode)
     }
 
     private func returnKey(_ type: UIReturnKeyType) -> (String, Bool) {
