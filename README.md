@@ -96,6 +96,20 @@ Phono can send each clip to a Phonon server, such as a Linux machine on your tai
 
 **Engine** in the menu switches between the server and this Mac. `phono server off` switches back from the command line. Use the server's short name (`overmn`) or its IP address: the app allows plain http only on the local network. The key is stored in Phono's preferences, in plain text. `phono transcribe` always runs on this Mac.
 
+### iPhone
+
+The iPhone app in `iOS/` sends each clip to the same Phonon server. Tap the button, speak, and tap again. The text is copied to the clipboard. It needs Xcode and [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
+
+1. Give the server an https address. iOS does not allow plain http. On the server, run `sudo tailscale serve --bg 8000`, and publish the container's port on `127.0.0.1` too: add `-p 127.0.0.1:8000:8000` to `docker run`.
+2. Build the app:
+
+   ```sh
+   cd iOS && xcodegen && open Phono.xcodeproj
+   ```
+
+3. In Xcode, choose your team under **Signing & Capabilities**, pick your iPhone, and run.
+4. In the app's settings, enter the https address, such as `https://overmn.tailnet.ts.net`, and the key. Tailscale must be on on the iPhone.
+
 ## Troubleshooting
 
 | Problem | Fix |

@@ -2,3 +2,6 @@
 build/
 .DS_Store
 .swiftpm/
+# Made by xcodegen from iOS/project.yml.
+iOS/Phono.xcodeproj/
+iOS/Phono/Info.plist
