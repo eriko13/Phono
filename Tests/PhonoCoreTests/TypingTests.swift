@@ -12,6 +12,14 @@ final class TypingTests: XCTestCase {
         XCTAssertFalse(Typing.capitalizes(after: "e.g", .sentences))
     }
 
+    func testSpanishQuestionsAndExclamations() {
+        XCTAssertTrue(Typing.capitalizes(after: "¿", .sentences))
+        XCTAssertTrue(Typing.capitalizes(after: "Vale. ¡", .sentences))
+        XCTAssertFalse(Typing.capitalizes(after: "Hola, ¿", .sentences))
+        XCTAssertTrue(Typing.capitalizes(after: "Hola ¿", .words))
+        XCTAssertEqual(Typing.previousWord(before: "Hola, ¿qu"), "")
+    }
+
     func testOtherModes() {
         XCTAssertTrue(Typing.capitalizes(after: "New ", .words))
         XCTAssertFalse(Typing.capitalizes(after: "New", .words))
