@@ -70,19 +70,22 @@ Settings are in the menu-bar menu:
 
 ### Use a server instead of this Mac
 
-Phono can send each clip to a Phonon server, such as a Linux machine with an NVIDIA GPU, and paste the text that comes back. It is the same Phonon-2 model, so the text is the same. Your audio leaves your Mac, but only for the server you set.
+Phono can send each clip to a Phonon server, such as a Linux machine on your tailnet, and paste the text that comes back. It is the same Phonon-2 model, so the text is the same. Your audio leaves your Mac, but only for the server you set.
 
-1. On the server, start Fermion's CUDA image with an API key. It needs Docker and the NVIDIA Container Toolkit.
+1. On the server, start Fermion's CPU image with an API key. It needs Docker.
 
    ```sh
    mkdir -p ~/.config/phonon && echo "PHONON_API_KEY=$(openssl rand -hex 24)" > ~/.config/phonon/env
-   docker run -d --name phonon --restart unless-stopped --gpus all \
-     --env-file ~/.config/phonon/env -v phonon-cache:/home/phonon/.cache \
-     -p 100.x.y.z:8000:8000 ghcr.io/fermionresearch/phonon-cuda:1.0.6 \
-     serve --model phonon-2 --host 0.0.0.0 --port 8000
+   . ~/.config/phonon/env
+   docker run -d --name phonon --restart unless-stopped \
+     -v phonon-cache:/home/phonon/.cache -p 100.x.y.z:8000:8000 \
+     ghcr.io/fermionresearch/phonon-cpu:2.0.7 \
+     serve phonon-2 --host 0.0.0.0 --port 8000 --api-key "$PHONON_API_KEY"
    ```
 
-   Replace `100.x.y.z` with the server's Tailscale IP, so only your tailnet can reach it. For a server without a GPU, use `ghcr.io/fermionresearch/phonon-cpu:2.0.7` and drop `--gpus all`.
+   Replace `100.x.y.z` with the server's Tailscale IP, so only your tailnet can reach it. Check that `curl -F file=@clip.wav http://100.x.y.z:8000/v1/audio/transcriptions` returns 401 without the key.
+
+   The CPU image needs 1.4 GB of RAM and is fast enough for dictation: on a 16-thread x86 server, a 10-second clip takes 0.27 s. Fermion's CUDA image (`ghcr.io/fermionresearch/phonon-cuda:1.0.6`, with `--gpus all`) is about six times faster, but it keeps the GPU out of its idle state, which cost 62 W around the clock on an RTX 3070 Ti. It reads the key from `--env-file ~/.config/phonon/env`; the CPU image needs `--api-key`.
 2. On the Mac, point Phono at it:
 
    ```sh
