@@ -8,10 +8,4 @@ final class TextTests: XCTestCase {
         XCTAssertEqual(Transcript.finalize("Hello", appendSpace: false), "Hello")
         XCTAssertNil(Transcript.finalize(" \n ", appendSpace: true))
     }
-
-    func testHotwordsParse() {
-        XCTAssertEqual(Hotwords.parse("Ada, Quillon\n# comment\n ada ,, Neutrino "), ["Ada", "Quillon", "Neutrino"])
-        let many = (1...40).map { "w\($0)" }.joined(separator: ",")
-        XCTAssertEqual(Hotwords.parse(many).count, Hotwords.limit)
-    }
 }

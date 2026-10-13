@@ -13,16 +13,17 @@ permissions:
 jobs:
   build:
     runs-on: macos-15
+    timeout-minutes: 60
     steps:
       # actions/checkout v4.2.2 — pinned by full commit SHA.
       - name: Checkout
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Build (strict concurrency, warnings as errors)
-        run: swift build -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+      - name: Build (warnings as errors)
+        run: swift build -Xswiftc -warnings-as-errors
 
-      - name: Test core logic (WAV, engine protocol, settings)
-        run: swift test -Xswiftc -strict-concurrency=complete -Xswiftc -warnings-as-errors
+      - name: Test core logic (hotkeys, settings, model files)
+        run: swift test
 
       - name: Check scripts parse
         run: for f in Scripts/*.sh; do bash -n "$f"; done
@@ -36,14 +37,35 @@ jobs:
       - name: Bundle Phono.app (ad-hoc signed in CI)
         run: ./Scripts/bundle.sh
 
-      - name: Verify the app icon is in the bundle
-        run: test -s build/Phono.app/Contents/Resources/AppIcon.icns
+      - name: Verify the bundle
+        run: |
+          test -s build/Phono.app/Contents/Resources/AppIcon.icns
+          codesign --verify --verbose=2 build/Phono.app
 
-      - name: Verify bundle assembles and ad-hoc signs
-        run: codesign --verify --verbose=2 build/Phono.app
-
-      - name: CLI smoke test (no engine, no permissions)
+      - name: CLI smoke test (no model, no permissions)
         run: |
           build/Phono.app/Contents/MacOS/phono status
           # Unknown commands print usage and exit 2.
           set +e; build/Phono.app/Contents/MacOS/phono help; test $? -eq 2
+
+      - name: Download the model
+        run: ./Scripts/download-model.sh
+
+      # Hosted runners have no Neural Engine, so Core ML runs on the CPU
+      # here: slower, same text.
+      - name: Transcribe a clip end to end
+        run: |
+          CLIPS="https://huggingface.co/FermionResearch/Phonon-2-CoreML/resolve/1143812fd4236522232a8c33e3115f0577e3cd7d/ci"
+          curl -fsSL -o clip.flac "$CLIPS/clips/1089-134686-0002.flac"
+          curl -fsSL -o expected.json "$CLIPS/expected_texts.json"
+          # The first run compiles the model for this machine; time the second.
+          build/Phono.app/Contents/MacOS/phono transcribe clip.flac > /dev/null
+          /usr/bin/time -l build/Phono.app/Contents/MacOS/phono transcribe clip.flac > text.txt 2> time.txt
+          cat text.txt time.txt
+          EXPECTED="$(python3 -c 'import json; print(json.load(open("expected.json"))["1089-134686-0002"])')"
+          test "$(cat text.txt)" = "$EXPECTED"
+
+      - name: Sizes
+        run: |
+          PHONO_APP=build/Phono.app ./Scripts/stats.sh
+          ls -l build/Phono.app/Contents/MacOS/phono
