@@ -1,3 +1,4 @@
+import NaturalLanguage
 import PhonoCore
 import UIKit
 
@@ -11,10 +12,16 @@ struct Suggestion: Equatable {
 }
 
 /// The suggestions of Apple's keyboard: completions and fixes for the word
-/// being typed, from iOS's spell checker, and next words after a space.
+/// being typed, from iOS's spell checker, and next words after a space. In
+/// English and Spanish at once, like Apple's bilingual keyboard: a word is a
+/// typo only if neither language knows it, and the language being written
+/// comes first.
 @MainActor
 final class Suggester {
     private let checker = UITextChecker()
+    /// The language being written, `en` or `es`.
+    private var language = Suggester.preferredLanguage
+    private let recognizer = NLLanguageRecognizer()
     private var nextWords: NextWords
     /// Text replacements from Settings › General › Keyboard, by shortcut.
     private var replacements: [String: String] = [:]
@@ -27,12 +34,23 @@ final class Suggester {
         .appendingPathComponent("next-words.json")
 
     init() {
-        let starter = Bundle.main.url(forResource: "next-words", withExtension: "txt")
-            .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+        func starter(_ name: String) -> String {
+            Bundle.main.url(forResource: name, withExtension: "txt")
+                .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+        }
         let learned = Self.learnedFile
             .flatMap { try? Data(contentsOf: $0) }
             .flatMap { try? JSONDecoder().decode([String: [String: Int]].self, from: $0) } ?? [:]
-        nextWords = NextWords(starters: ["en": starter], learned: learned)
+        nextWords = NextWords(
+            starters: ["en": starter("next-words"), "es": starter("next-words-es")],
+            learned: learned
+        )
+        recognizer.languageConstraints = [.english, .spanish]
+    }
+
+    /// Spanish if the user's first language of the two is Spanish.
+    private static var preferredLanguage: String {
+        Locale.preferredLanguages.lazy.map { String($0.prefix(2)) }.first { ["en", "es"].contains($0) } ?? "en"
     }
 
     /// The entries of the keyboard's `UILexicon`: what the user types, and
@@ -54,10 +72,11 @@ final class Suggester {
 
     /// Up to three, in the order the bar shows them, the best in the middle.
     func suggestions(before: String, after: String, capitalizes: Bool) -> [Suggestion] {
+        detectLanguage(before)
         // Inside a word, nothing fits.
         if let next = after.first, next.isLetter { return [] }
         let word = Typing.currentWord(before: before)
-        let likely = nextWords.predictions(after: Typing.previousWord(before: before), language: "en")
+        let likely = nextWords.predictions(after: Typing.previousWord(before: before), language: language)
 
         guard !word.isEmpty else {
             guard before.last?.isWhitespace ?? true else { return [] }
@@ -87,7 +106,7 @@ final class Suggester {
     /// contraction without its apostrophe, or a text replacement.
     func correction(for word: String) -> String? {
         if let replacement = replacements[word.lowercased()] { return replacement }
-        if let contraction = Typing.contraction(for: word) {
+        if language == "en", let contraction = Typing.contraction(for: word) {
             let fixed = Typing.matchCase(contraction, to: word)
             return fixed == word ? nil : fixed
         }
@@ -115,8 +134,30 @@ final class Suggester {
         NSRange(location: 0, length: word.utf16.count)
     }
 
+    /// Decides from the last few words which language is being written. A
+    /// word or two is not enough to change it.
+    private func detectLanguage(_ before: String) {
+        let recent = String(before.suffix(120))
+        guard recent.split(separator: " ").count >= 3 else { return }
+        recognizer.reset()
+        recognizer.processString(recent)
+        let hypotheses = recognizer.languageHypotheses(withMaximum: 1)
+        guard let (best, chance) = hypotheses.first, chance > 0.7 else { return }
+        language = best == .spanish ? "es" : "en"
+    }
+
     /// The spell checker's languages, the one being written first.
-    private var languages: [String] { ["en_US"] }
+    private var languages: [String] {
+        language == "es" ? [Self.spanish, Self.english] : [Self.english, Self.spanish]
+    }
+
+    private static let english = checkerLanguage("en", preferring: "en_US")
+    private static let spanish = checkerLanguage("es", preferring: "es_ES")
+
+    private static func checkerLanguage(_ prefix: String, preferring best: String) -> String {
+        let available = UITextChecker.availableLanguages
+        return available.contains(best) ? best : available.first { $0.hasPrefix(prefix) } ?? best
+    }
 
     /// Not a word in any of the languages.
     private func isMisspelled(_ word: String) -> Bool {
