@@ -524,7 +524,7 @@ private final class PopupView: UIView {
 
 // MARK: - Colors
 
-private extension UIColor {
+extension UIColor {
     static let keyCharacter = UIColor {
         $0.userInterfaceStyle == .dark ? UIColor(white: 0.42, alpha: 1) : .white
     }

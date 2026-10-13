@@ -11,6 +11,9 @@ final class KeyboardViewController: UIInputViewController {
     private var lastKey: Key?
     private var state: KeyboardLink.State = .idle
     private var error: String?
+    private let suggester = Suggester()
+    /// The last fix space made, so that delete right after can undo it.
+    private var lastCorrection: (typed: String, fixed: String, end: String)?
 
     override func loadView() {
         view = ClickingInputView(frame: .zero, inputViewStyle: .keyboard)
@@ -22,6 +25,8 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.onCursor = { [weak self] offset in
             self?.textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
         }
+        keyboard.bar.onChoose = { [weak self] suggestion in self?.choose(suggestion) }
+        requestSupplementaryLexicon { [weak self] lexicon in self?.suggester.use(lexicon) }
         keyboard.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(keyboard)
         let height = view.heightAnchor.constraint(equalToConstant: 260)
@@ -47,6 +52,11 @@ final class KeyboardViewController: UIInputViewController {
         keyboard.configuration.page = .letters
         keyboard.configuration.shift = .off
         update()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        suggester.save()
     }
 
     override func viewWillLayoutSubviews() {
@@ -81,14 +91,18 @@ final class KeyboardViewController: UIInputViewController {
     private func perform(_ key: Key) {
         let proxy = textDocumentProxy
         var configuration = keyboard.configuration
+        let correction = lastCorrection
+        lastCorrection = nil
         switch key {
         case .character(let text):
+            if Self.wordEnds.contains(text) { endWord(with: text) }
             let letters = configuration.page == .letters
             proxy.insertText(letters && configuration.shift != .off ? text.uppercased() : text)
             if configuration.shift == .once { configuration.shift = .off }
             // As on Apple's keyboard, an apostrophe goes back to the letters.
             if !letters && text == "'" { configuration.page = .letters }
         case .space:
+            endWord(with: " ")
             // Two spaces after a word end the sentence.
             let before = proxy.documentContextBeforeInput ?? ""
             if Typing.spaceEndsSentence(after: before, lastKeyWasSpace: lastKey == .space) {
@@ -101,7 +115,15 @@ final class KeyboardViewController: UIInputViewController {
         case .return:
             proxy.insertText("\n")
         case .delete:
-            proxy.deleteBackward()
+            let before = proxy.documentContextBeforeInput ?? ""
+            if let correction, before.hasSuffix(correction.fixed + correction.end) {
+                // Undo the fix: back to what was typed, and keep it.
+                for _ in 0 ..< (correction.fixed + correction.end).count { proxy.deleteBackward() }
+                proxy.insertText(correction.typed)
+                suggester.keep(correction.typed)
+            } else {
+                proxy.deleteBackward()
+            }
         case .shift:
             let now = Date()
             let doubleTap = lastShiftPress.map { now.timeIntervalSince($0) < 0.35 } ?? false
@@ -121,6 +143,48 @@ final class KeyboardViewController: UIInputViewController {
         if key != .shift { update() }
     }
 
+    /// Characters that end a word, and so apply the fix the bar shows.
+    private static let wordEnds: Set<String> = [".", ",", "?", "!", ";", ":"]
+
+    /// Before `end` is typed: puts the fix in place of the word, and learns
+    /// which word followed which.
+    private func endWord(with end: String) {
+        let proxy = textDocumentProxy
+        let before = proxy.documentContextBeforeInput ?? ""
+        let word = Typing.currentWord(before: before)
+        guard !word.isEmpty else { return }
+        var final = word
+        if autocorrects, let fixed = suggester.correction(for: word) {
+            for _ in 0 ..< word.count { proxy.deleteBackward() }
+            proxy.insertText(fixed)
+            lastCorrection = (word, fixed, end)
+            final = fixed
+        }
+        suggester.learn(final, before: String(before.dropLast(word.count)))
+    }
+
+    private func choose(_ suggestion: Suggestion) {
+        let proxy = textDocumentProxy
+        let before = proxy.documentContextBeforeInput ?? ""
+        let word = Typing.currentWord(before: before)
+        for _ in 0 ..< word.count { proxy.deleteBackward() }
+        proxy.insertText(suggestion.text + " ")
+        if suggestion.isTyped { suggester.keep(suggestion.text) }
+        suggester.learn(suggestion.text, before: String(before.dropLast(word.count)))
+        lastKey = nil
+        lastCorrection = nil
+        keyboard.configuration.page = .letters
+        update()
+    }
+
+    /// The field wants fixes: not in addresses, and not where the app turned
+    /// them off.
+    private var autocorrects: Bool {
+        let proxy = textDocumentProxy
+        let type = proxy.keyboardType ?? .default
+        return proxy.autocorrectionType != .no && ![.URL, .emailAddress, .webSearch].contains(type)
+    }
+
     /// Matches the keyboard to the text field and to the app's state.
     private func update() {
         let proxy = textDocumentProxy
@@ -135,16 +199,25 @@ final class KeyboardViewController: UIInputViewController {
         configuration.returnEnabled = !(proxy.enablesReturnKeyAutomatically ?? false) || proxy.hasText
         keyboard.configuration = configuration
 
-        if !hasFullAccess {
-            show("Allow Full Access to type what you dictate: Settings › Apps › Phono › Keyboards.", .secondaryLabel)
-        } else if let error {
+        let suggestions = autocorrects
+            ? suggester.suggestions(
+                before: proxy.documentContextBeforeInput ?? "",
+                after: proxy.documentContextAfterInput ?? "",
+                capitalizes: capitalizes
+            )
+            : []
+        if let error {
             show(error, .systemRed)
+        } else if state == .recording {
+            show("Listening…", .systemRed)
+        } else if state == .transcribing {
+            show("Transcribing…", .secondaryLabel)
+        } else if !suggestions.isEmpty {
+            keyboard.bar.show(suggestions: suggestions)
+        } else if !hasFullAccess {
+            show("Allow Full Access to type what you dictate: Settings › Apps › Phono › Keyboards.", .secondaryLabel)
         } else {
-            switch state {
-            case .idle: show("Press Talk at the top of the screen to dictate.", .tertiaryLabel)
-            case .recording: show("Listening…", .systemRed)
-            case .transcribing: show("Transcribing…", .secondaryLabel)
-            }
+            show("Press Talk at the top of the screen to dictate.", .tertiaryLabel)
         }
     }
 
