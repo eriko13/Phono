@@ -38,7 +38,7 @@ cd Phono
 The script downloads the model (345 MB), builds Phono, copies it to `/Applications`, and opens it. Then:
 
 1. Allow microphone access.
-2. Allow Phono in **System Settings › Privacy & Security › Accessibility**. Phono needs this to see the Option key and to paste.
+2. Allow Phono in **System Settings › Privacy & Security › Accessibility**. Phono needs this to see the Option key and to paste or type the text.
 3. Wait until the menu-bar wave is no longer dimmed. On the first launch, macOS prepares the model for your Mac. This takes a minute or two and happens once.
 
 To update, run `git pull` and `./Scripts/install.sh` again. macOS treats each build as a new app, so remove the old Phono entry from the Accessibility list and allow the new one.
@@ -53,7 +53,10 @@ Settings are in the menu-bar menu:
 
 - **Mode**: hold to talk, or press once to start and again to stop.
 - **Shortcut**: ⌥ Option, Right ⌥ Option, fn, or a key combination such as ⌃⌥Space. If you choose fn, set **Keyboard › Press 🌐 key to** to **Do Nothing**.
-- **Paste into active app**: turn off to only copy the text.
+- **Output**: how the text gets to the active app.
+  - **Paste** (default): Phono pastes the text with ⌘V, then puts back your clipboard.
+  - **Type**: Phono types the text one character at a time. Use it where paste does not work, such as in apps or web forms that block paste. Your clipboard does not change. Long text takes a second or two.
+  - **Copy only**: Phono puts the text on the clipboard.
 - **Recent**: your last 10 transcripts. Click one to copy it again.
 
 ### Command line
@@ -72,6 +75,7 @@ Settings are in the menu-bar menu:
 | The menu says the model is not downloaded | Run `./Scripts/download-model.sh`, then choose **Load Phonon-2** in the menu. |
 | Holding Option does nothing | Allow Phono in Accessibility. After a rebuild, remove the old entry first. |
 | The text is copied but not pasted | The same Accessibility fix. |
+| An app does not accept the pasted text | Set **Output** to **Type**. |
 
 ## Uninstall
 

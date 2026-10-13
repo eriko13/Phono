@@ -41,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Ask up front, so the first dictation works.
         if Permissions.isMicrophoneUndetermined { Permissions.requestMicrophone() }
-        if settings.autoPaste || settings.hotkey.isModifierOnly { Permissions.promptAccessibility() }
+        if settings.output != .copy || settings.hotkey.isModifierOnly { Permissions.promptAccessibility() }
 
         speech.load()
     }

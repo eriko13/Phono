@@ -56,8 +56,12 @@ final class StatusItemController: NSObject, NSMenuDelegate {
                 current: { self.settings.hotkey }, label: { $0.title },
                 separatorBefore: HotkeyPreset.all.firstIndex { !$0.isModifierOnly }
             ) { self.selectHotkey($0) },
-            toggle("Paste into active app", \.autoPaste) {
-                if self.settings.autoPaste { Permissions.promptAccessibility() }
+            choice(
+                "Output", Output.allCases.map { ($0.title, $0) },
+                current: { self.settings.output }, label: { $0.title }
+            ) {
+                self.settings.output = $0
+                if $0 != .copy { Permissions.promptAccessibility() }
             },
             toggle("Add trailing space", \.appendSpace),
             toggle("Play sounds", \.sounds),
@@ -110,14 +114,9 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         return MenuItem(liveTitle: { "\(title): \(label(current()))" }, submenu: makeMenu(items))
     }
 
-    private func toggle(
-        _ title: String,
-        _ setting: ReferenceWritableKeyPath<Settings, Bool>,
-        then: @escaping () -> Void = {}
-    ) -> MenuItem {
+    private func toggle(_ title: String, _ setting: ReferenceWritableKeyPath<Settings, Bool>) -> MenuItem {
         MenuItem(title, isOn: { self.settings[keyPath: setting] }) {
             self.settings[keyPath: setting].toggle()
-            then()
             self.refresh()
         }
     }
