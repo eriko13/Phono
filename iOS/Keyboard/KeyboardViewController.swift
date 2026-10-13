@@ -11,6 +11,8 @@ final class KeyboardViewController: UIInputViewController {
     private var lastKey: Key?
     private var state: KeyboardLink.State = .idle
     private var error: String?
+    /// The dictated text last typed, so that each is typed once.
+    private var typedTextID: UUID?
     private let suggester = Suggester()
     /// The last fix space made, so that delete right after can undo it.
     private var lastCorrection: (typed: String, fixed: String, end: String)?
@@ -46,8 +48,9 @@ final class KeyboardViewController: UIInputViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         // Text the app sent while another field was active is not for this one.
-        _ = KeyboardLink.takeText()
-        state = KeyboardLink.read().state
+        let message = KeyboardLink.read()
+        typedTextID = message.textID
+        state = message.state
         error = nil
         keyboard.configuration.page = .letters
         keyboard.configuration.shift = .off
@@ -81,12 +84,15 @@ final class KeyboardViewController: UIInputViewController {
         // A Talk press has no feel of its own, and iOS does not let the app
         // play haptics from the background, so the keyboard does.
         if state == .recording, previous != .recording {
-            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+            UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.6)
         } else if previous == .recording, state != .recording {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.4)
         }
         error = message.error
-        if let text = KeyboardLink.takeText() { insert(text) }
+        if let text = message.text, message.textID != typedTextID {
+            typedTextID = message.textID
+            insert(text)
+        }
         update()
     }
 

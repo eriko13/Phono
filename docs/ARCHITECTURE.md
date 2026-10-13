@@ -37,7 +37,7 @@ A keyboard extension cannot use the microphone, and iOS does not let an app turn
 
 1. `TalkChannel` joins one channel, with nobody else on it, when the user turns on the Talk button. iOS keeps the channel joined and shows a Talk button in the status bar or the Dynamic Island.
 2. A Talk press launches the app in the background if needed, and the system activates the audio session. `Dictation` opens the Recorder and starts a clip.
-3. When the press ends, the app transcribes the clip and writes the state and the text to the `group.io.github.eriko13.phono` App Group defaults, then posts a `changed` Darwin notification. The keyboard reads them and inserts the text.
+3. When the press ends, the app transcribes the clip and writes the state and the text to one file in the `group.io.github.eriko13.phono` App Group container, then posts a `changed` Darwin notification. The keyboard reads the file and inserts the text. A file, not the App Group's defaults: defaults reach the other process a moment after the notification, so the keyboard could miss the text.
 
 The keyboard is drawn with UIKit, like Apple's: letters, numbers, and symbols pages, shift and caps lock, and capitals where the text field asks for them. `KeyboardView` tracks each finger by hand, so a character is typed when its finger lifts or when the next finger lands, as fast typing needs. Holding the space bar turns the keys into a trackpad that moves the cursor left and right; iOS gives a keyboard no way to move it up or down.
 
