@@ -36,12 +36,14 @@ final class Suggester {
         nextWords = NextWords(starter: starter, learned: learned)
     }
 
-    func use(_ lexicon: UILexicon) {
-        for entry in lexicon.entries {
-            if entry.userInput == entry.documentText {
-                names.insert(entry.documentText)
+    /// The entries of the keyboard's `UILexicon`: what the user types, and
+    /// the text it stands for.
+    func use(_ entries: [(input: String, text: String)]) {
+        for entry in entries {
+            if entry.input == entry.text {
+                names.insert(entry.text)
             } else {
-                replacements[entry.userInput.lowercased()] = entry.documentText
+                replacements[entry.input.lowercased()] = entry.text
             }
         }
     }

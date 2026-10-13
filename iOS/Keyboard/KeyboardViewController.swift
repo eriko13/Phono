@@ -28,7 +28,9 @@ final class KeyboardViewController: UIInputViewController {
             self?.textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
         }
         keyboard.bar.onChoose = { [weak self] suggestion in self?.choose(suggestion) }
-        requestSupplementaryLexicon { [weak self] lexicon in self?.suggester.use(lexicon) }
+        requestSupplementaryLexicon { [weak self] lexicon in
+            self?.suggester.use(lexicon.entries.map { ($0.userInput, $0.documentText) })
+        }
         keyboard.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(keyboard)
         let height = view.heightAnchor.constraint(equalToConstant: 260)
