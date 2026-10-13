@@ -48,6 +48,7 @@ private func printStatus(model: URL) {
         ("Accessibility", Permissions.isAccessibilityGranted ? "granted" : "not granted"),
         ("Microphone", Permissions.microphoneStatus),
         ("Shortcut", "\(settings.hotkey.title), \(settings.mode.title.lowercased())"),
+        ("Output", settings.output.title),
     ]
     for (label, value) in rows {
         print("\(label.padding(toLength: 14, withPad: " ", startingAt: 0))\(value)")

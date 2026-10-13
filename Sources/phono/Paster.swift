@@ -1,24 +1,40 @@
 import AppKit
 import ApplicationServices
+import PhonoCore
 
 /// Puts a transcript where the cursor is.
 ///
-/// The text goes on the clipboard, then Phono posts ⌘V. After the paste lands
-/// the previous clipboard comes back, so dictation does not eat whatever the
-/// user had copied. Without Accessibility the text stays on the clipboard.
+/// Paste: the text goes on the clipboard, then Phono posts ⌘V. After the
+/// paste lands the previous clipboard comes back, so dictation does not eat
+/// whatever the user had copied.
+///
+/// Type: Phono posts one key event per character and leaves the clipboard
+/// alone.
+///
+/// Without Accessibility, both fall back to the clipboard.
 @MainActor
 enum Paster {
     enum Outcome {
-        case pasted
+        case inserted
         case copied
     }
 
     /// Long enough for the target app to read the clipboard on ⌘V.
     private static let restoreDelay: Duration = .milliseconds(600)
+    /// Some apps drop characters that arrive with no gap between them.
+    private static let keyGap: Duration = .milliseconds(2)
+    /// The text still being typed. The next text waits for it.
+    private static var typing: Task<Void, Never>?
 
-    static func deliver(_ text: String, autoPaste: Bool) -> Outcome {
+    static func deliver(_ text: String, output: Output) -> Outcome {
+        let canInsert = Permissions.isAccessibilityGranted
+        if output == .type, canInsert {
+            type(text)
+            return .inserted
+        }
+
         let pasteboard = NSPasteboard.general
-        let willPaste = autoPaste && Permissions.isAccessibilityGranted
+        let willPaste = output == .paste && canInsert
         let saved = willPaste ? snapshot(pasteboard) : []
 
         pasteboard.clearContents()
@@ -34,7 +50,7 @@ enum Paster {
             guard NSPasteboard.general.changeCount == ours, !saved.isEmpty else { return }
             restore(saved, to: NSPasteboard.general)
         }
-        return .pasted
+        return .inserted
     }
 
     // MARK: - Clipboard snapshot
@@ -76,6 +92,28 @@ enum Paster {
             // dictation shortcut (⌃⌥) do not turn this into ⌃⌥⌘V.
             event?.flags = .maskCommand
             event?.post(tap: .cghidEventTap)
+        }
+    }
+
+    /// Each event carries one character, not a key code, so the keyboard
+    /// layout does not matter. One character per event, because some apps
+    /// read only the first character of a longer string.
+    private static func type(_ text: String) {
+        typing = Task { [previous = typing] in
+            await previous?.value
+            let source = CGEventSource(stateID: .combinedSessionState)
+            for character in text {
+                let units = Array(character.utf16)
+                for isDown in [true, false] {
+                    let event = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: isDown)
+                    // No modifiers, so a held ⌃ or ⌥ does not turn a letter
+                    // into a shortcut.
+                    event?.flags = []
+                    event?.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units)
+                    event?.post(tap: .cghidEventTap)
+                }
+                try? await Task.sleep(for: keyGap)
+            }
         }
     }
 }
