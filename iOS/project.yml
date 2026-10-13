@@ -30,9 +30,6 @@ targets:
         NSMicrophoneUsageDescription: Phono records what you say and sends it to your Phonon server to turn it into text.
         UILaunchScreen: {}
         UIBackgroundModes: [audio, push-to-talk]
-        CFBundleURLTypes:
-          - CFBundleURLName: io.github.eriko13.phono.ios
-            CFBundleURLSchemes: [phono]
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
     settings:
       base:

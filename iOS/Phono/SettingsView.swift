@@ -45,16 +45,6 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Button("Open Phono in Settings") {
-                        UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!)
-                    }
-                } header: {
-                    Text("Keyboard")
-                } footer: {
-                    Text("Under **Keyboards**, turn on Phono and Allow Full Access. The keyboard needs full access to talk to this app. It sends nothing anywhere else.")
-                }
-
-                Section {
                     Toggle("Talk button", isOn: Binding(
                         get: { talk.isJoined },
                         set: { $0 ? talk.join() : talk.leave() }
@@ -62,10 +52,13 @@ struct SettingsView: View {
                     if let error = talk.error {
                         Text(error).foregroundStyle(.red)
                     }
+                    Button("Open Phono in Settings") {
+                        UIApplication.shared.open(URL(string: UIApplication.openSettingsURLString)!)
+                    }
                 } header: {
-                    Text("Experimental")
+                    Text("Dictate in any app")
                 } footer: {
-                    Text("Adds a walkie-talkie Talk button to the status bar. It records without opening Phono, even after iOS closes the app. The text goes to the Phono keyboard if it is showing, and to the clipboard.")
+                    Text("The Talk button sits in the status bar, like a walkie-talkie. Press it, speak, and press again: the Phono keyboard types the text. It works even after iOS closes Phono.\n\nUnder **Keyboards**, turn on Phono and Allow Full Access. The keyboard needs full access to get the text from this app. It sends nothing anywhere else.")
                 }
             }
             .navigationTitle("Settings")

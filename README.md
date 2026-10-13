@@ -112,13 +112,14 @@ The iPhone app in `iOS/` sends each clip to the same Phonon server. Tap the butt
 3. In Xcode, choose your team under **Signing & Capabilities**, pick your iPhone, and run.
 4. In the app's settings, enter the https address, such as `https://overmn.tailnet.ts.net`, and the key. Tailscale must be on on the iPhone.
 
-To dictate into any app, use the Phono keyboard:
+To dictate into any app, use the Talk button and the Phono keyboard:
 
-1. In **Settings › Apps › Phono › Keyboards**, turn on Phono and **Allow Full Access**. The keyboard needs it to talk to the Phono app. It does not use the network.
-2. In any text field, switch to the Phono keyboard with the globe key, and tap the mic. The first tap opens Phono, which turns on the microphone and starts listening.
-3. Go back with **◀** in the top-left corner, talk, and tap stop. The text is typed where your cursor is.
+1. In the Phono app's settings, turn on **Talk button**. Phono joins a walkie-talkie channel of its own, with nobody else on it, and iOS shows a Talk button in the status bar or the Dynamic Island.
+2. In **Settings › Apps › Phono › Keyboards**, turn on Phono and **Allow Full Access**. The keyboard needs it to get the text from the Phono app. It does not use the network.
+3. In any text field, switch to the Phono keyboard with the globe key.
+4. Press **Talk**, speak, and press it again. The text is typed where your cursor is.
 
-After that, the mic works without leaving the app. iOS does not let an app turn on the microphone from the background, so Phono keeps it on, with the orange dot showing, until 5 minutes after your last clip. Turn it off sooner in the Phono app.
+You never switch apps. iOS does not let an app turn on the microphone from the background, except for a walkie-talkie: the Talk button starts Phono in the background, even after iOS has closed it. The keyboard has to be Phono's, because iOS does not let an app in the background put text on the clipboard.
 
 ## Troubleshooting
 

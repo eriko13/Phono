@@ -7,10 +7,6 @@ struct PhonoApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView(dictation: dictation)
-                .onOpenURL { url in
-                    guard url == KeyboardLink.openURL else { return }
-                    Task { await dictation.startKeyboardSession() }
-                }
         }
     }
 }

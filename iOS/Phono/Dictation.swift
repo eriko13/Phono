@@ -4,8 +4,9 @@ import PhonoCore
 import PhonoKit
 import UIKit
 
-/// One dictation at a time: record, send the clip to the Phonon server, copy
-/// the text or hand it to the keyboard.
+/// One dictation at a time: record, send the clip to the Phonon server, then
+/// copy the text, or hand it to the keyboard when the clip came from the Talk
+/// button.
 @MainActor
 @Observable
 final class Dictation {
@@ -16,7 +17,9 @@ final class Dictation {
         case failed(String)
     }
 
-    private(set) var state: State = .idle
+    private(set) var state: State = .idle {
+        didSet { publish() }
+    }
     /// 0–1 loudness of the latest audio buffer, for the level ring.
     private(set) var level: Float = 0
     /// Newest first. Kept for this launch only, like the Mac's Recent menu.
@@ -24,101 +27,37 @@ final class Dictation {
     /// The transcript last put on the clipboard. Text sent to the keyboard is
     /// typed, not copied.
     private(set) var copied: String?
-    /// The keyboard cannot use the microphone, so the app records for it.
-    /// iOS does not let an app turn the microphone on from the background, so
-    /// during a keyboard session the microphone stays on between clips.
-    private(set) var keyboardSession = false
 
     let settings = Settings(store: .standard)
     /// Its Talk button records with the app in the background.
     let talk = TalkChannel()
     private let recorder = Recorder()
-    /// The clip being recorded came from the keyboard, so its text goes there.
-    private var forKeyboard = false
     /// The clip being recorded came from the Talk button. The system owns the
     /// audio session, and the app may be in the background.
     private var fromTalk = false
-    private var idleTimer: Task<Void, Never>?
-
-    /// The keyboard session ends this long after the last clip.
-    static let keyboardIdle: Duration = .seconds(5 * 60)
 
     var hasServer: Bool { Server.baseURL(settings.serverURL) != nil }
 
     init() {
-        KeyboardLink.observe(.toggle) { [weak self] in
-            Task { await self?.keyboardToggle() }
-        }
-        KeyboardLink.observe(.ping) { [weak self] in
-            self?.publish()
-        }
-        NotificationCenter.default.addObserver(
-            forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
-        ) { [weak self] note in
-            let type = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
-            guard type == AVAudioSession.InterruptionType.began.rawValue else { return }
-            MainActor.assumeIsolated { self?.endKeyboardSession() }
-        }
         talk.onActivate = { [weak self] in self?.talkActivated() }
         talk.onEnd = { [weak self] in
             Task { await self?.talkEnded() }
         }
         Task { await talk.start() }
-        KeyboardLink.publish(.off, error: nil)
+        publish()
     }
 
     func toggle() async {
         switch state {
         case .recording: await finish()
         case .transcribing: return
-        case .idle, .failed:
-            forKeyboard = false
-            await start()
+        case .idle, .failed: await start()
         }
     }
 
     func copy(_ text: String) {
         UIPasteboard.general.string = text
         copied = text
-    }
-
-    /// The keyboard opened the app: turn the microphone on and start a clip.
-    func startKeyboardSession() async {
-        keyboardSession = true
-        if state != .recording {
-            forKeyboard = true
-            await start()
-        }
-        if !recorder.isOpen { keyboardSession = false }
-        restartIdleTimer()
-        publish()
-    }
-
-    func endKeyboardSession() {
-        guard keyboardSession else { return }
-        keyboardSession = false
-        idleTimer?.cancel()
-        if state == .recording {
-            _ = recorder.endCapture()
-            level = 0
-            state = .idle
-        }
-        if state != .transcribing { closeMic() }
-        publish()
-    }
-
-    private func keyboardToggle() async {
-        guard keyboardSession else { return }
-        switch state {
-        case .recording:
-            await finish()
-        case .transcribing:
-            break
-        case .idle, .failed:
-            forKeyboard = true
-            await start()
-        }
-        publish()
     }
 
     private func start() async {
@@ -136,23 +75,15 @@ final class Dictation {
             state = .failed("Could not record: \(error.localizedDescription)")
             return
         }
-        idleTimer?.cancel()
         recorder.beginCapture()
         state = .recording
-        publish()
     }
 
     private func finish() async {
         let samples = recorder.endCapture()
-        if keyboardSession {
-            restartIdleTimer()
-        } else {
-            closeMic()
-        }
+        closeMic()
         level = 0
-        if let text = await transcribe(samples) { deliver(text) }
-        // The session may have ended while the clip was transcribing.
-        if !keyboardSession { closeMic() }
+        if let text = await transcribe(samples) { copy(text) }
     }
 
     /// Sends the clip to the server. nil: no text, or it failed.
@@ -167,7 +98,6 @@ final class Dictation {
         }
 
         state = .transcribing
-        publish()
         do {
             let server = ServerEngine(base: base, key: settings.serverKey)
             let text = try await server.transcribe(samples)
@@ -185,88 +115,53 @@ final class Dictation {
         }
     }
 
-    /// Hands the text to the keyboard or copies it.
-    private func deliver(_ text: String) {
-        if forKeyboard {
-            KeyboardLink.send(text)
-        }
-        // The Phono keyboard may not be showing.
-        if !forKeyboard || fromTalk {
-            copy(text)
-        }
-    }
-
     // MARK: Talk button
 
     private func talkActivated() {
         guard state != .recording, state != .transcribing else { return }
         do {
-            if !recorder.isOpen { try openRecorder() }
+            try openRecorder()
         } catch {
             state = .failed("Could not record: \(error.localizedDescription)")
             return
         }
         fromTalk = true
-        forKeyboard = true
-        idleTimer?.cancel()
         recorder.beginCapture()
         state = .recording
-        publish()
     }
 
     private func talkEnded() async {
         guard fromTalk, state == .recording else { return }
+        fromTalk = false
         let samples = recorder.endCapture()
         // The system deactivates the session.
-        if keyboardSession { restartIdleTimer() } else { recorder.close() }
+        recorder.close()
         level = 0
         // iOS suspends the app soon after the Talk press ends.
         let task = UIApplication.shared.beginBackgroundTask()
-        state = .transcribing
-        publish()
-        if let text = await transcribe(samples) { deliver(text) }
-        fromTalk = false
-        publish()
-        UIApplication.shared.endBackgroundTask(task)
-    }
-
-    private func restartIdleTimer() {
-        idleTimer?.cancel()
-        guard keyboardSession else { return }
-        idleTimer = Task { [weak self] in
-            try? await Task.sleep(for: Self.keyboardIdle)
-            guard !Task.isCancelled, let self, self.state != .recording else { return }
-            self.endKeyboardSession()
+        if let text = await transcribe(samples) {
+            // iOS does not let an app in the background use the clipboard,
+            // so only the Phono keyboard can take the text.
+            KeyboardLink.send(text)
         }
+        UIApplication.shared.endBackgroundTask(task)
     }
 
     /// Tells the keyboard where things stand.
     private func publish() {
-        let shared: KeyboardLink.State
-        var error: String?
-        switch (keyboardSession || fromTalk, state) {
-        case (false, _): shared = .off
-        case (true, .recording): shared = .recording
-        case (true, .transcribing): shared = .transcribing
-        case (true, .idle): shared = .ready
-        case (true, .failed(let message)):
-            shared = .ready
-            error = message
+        switch state {
+        case .idle: KeyboardLink.publish(.idle, error: nil)
+        case .recording: KeyboardLink.publish(.recording, error: nil)
+        case .transcribing: KeyboardLink.publish(.transcribing, error: nil)
+        case .failed(let message): KeyboardLink.publish(.idle, error: message)
         }
-        KeyboardLink.publish(shared, error: error)
     }
 
     private func openMic() throws {
         guard !recorder.isOpen else { return }
         do {
             let session = AVAudioSession.sharedInstance()
-            if keyboardSession {
-                // Music keeps playing while the microphone waits in the
-                // background.
-                try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers, .defaultToSpeaker])
-            } else {
-                try session.setCategory(.record, mode: .default)
-            }
+            try session.setCategory(.record, mode: .default)
             try session.setActive(true)
             try openRecorder()
         } catch {
