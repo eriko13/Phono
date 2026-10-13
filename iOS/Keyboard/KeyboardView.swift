@@ -4,8 +4,9 @@ import UIKit
 ///
 /// Touches are tracked by hand, so fast typing works as on Apple's keyboard:
 /// a character is typed when its finger lifts, or when the next finger lands,
-/// and a finger can slide to the character it meant. Holding the space bar
-/// turns the keyboard into a trackpad that moves the cursor.
+/// and a finger can slide to the character it meant. Holding a letter shows
+/// its accents, and holding the space bar turns the keyboard into a trackpad
+/// that moves the cursor.
 final class KeyboardView: UIView {
     struct Configuration: Equatable {
         var page: Page = .letters
@@ -43,6 +44,9 @@ final class KeyboardView: UIView {
     private var holdTimer: Timer?
     /// The key `holdTimer` waits on.
     private var holdIndex: Int?
+    /// The finger choosing an accent, its key, and the panel of accents.
+    private var accents: (touch: UITouch, index: Int)?
+    private let accentPanel = AccentPanel()
     /// The finger moving the cursor, and where it last moved it.
     private var trackpad: (touch: UITouch, x: CGFloat)?
     /// Points of finger travel per character, like Apple's.
@@ -55,6 +59,9 @@ final class KeyboardView: UIView {
         popup.isUserInteractionEnabled = false
         popup.isHidden = true
         addSubview(popup)
+        accentPanel.isUserInteractionEnabled = false
+        accentPanel.isHidden = true
+        addSubview(accentPanel)
         rebuildKeys()
     }
 
@@ -217,7 +224,7 @@ final class KeyboardView: UIView {
     // MARK: Touches
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard trackpad == nil else { return }
+        guard trackpad == nil, accents == nil else { return }
         for touch in touches {
             guard let index = keyIndex(at: touch.location(in: self)) else { continue }
             // Typing fast, the next finger lands before the last one lifts.
@@ -227,9 +234,7 @@ final class KeyboardView: UIView {
             }
             touchKeys[touch] = index
             press(index)
-            if keyViews[index].key == .space {
-                startHold(index, after: 0.35) { [weak self] in self?.beginTrackpad(touch) }
-            }
+            holdKey(index, touch)
         }
     }
 
@@ -243,19 +248,31 @@ final class KeyboardView: UIView {
             }
             return
         }
+        if let accents, touches.contains(accents.touch) {
+            accentPanel.select(at: accents.touch.location(in: accentPanel).x)
+            return
+        }
         for touch in touches {
             guard let index = touchKeys[touch], keyViews[index].key.isCharacter,
                   let now = keyIndex(at: touch.location(in: self)), now != index,
                   keyViews[now].key.isCharacter
             else { continue }
             touchKeys[touch] = now
+            if holdIndex == index { stopHold() }
             showPopup(now)
+            holdKey(now, touch)
         }
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
         if let trackpad, touches.contains(trackpad.touch) {
             endTrackpad()
+            return
+        }
+        if let accents, touches.contains(accents.touch) {
+            let chosen = accentPanel.selected
+            endAccents()
+            if let chosen { onKey(.character(chosen)) }
             return
         }
         for touch in touches {
@@ -275,6 +292,10 @@ final class KeyboardView: UIView {
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         if let trackpad, touches.contains(trackpad.touch) {
             endTrackpad()
+            return
+        }
+        if let accents, touches.contains(accents.touch) {
+            endAccents()
             return
         }
         for touch in touches {
@@ -314,6 +335,7 @@ final class KeyboardView: UIView {
         stopDeleteRepeat()
         stopHold()
         if trackpad != nil { endTrackpad() }
+        if accents != nil { endAccents() }
         hidePopup()
     }
 
@@ -330,7 +352,18 @@ final class KeyboardView: UIView {
         return indices.last
     }
 
-    // MARK: Trackpad
+    // MARK: Hold
+
+    /// Holding a key with accents shows them, and holding the space bar
+    /// moves the cursor.
+    private func holdKey(_ index: Int, _ touch: UITouch) {
+        let key = keyViews[index].key
+        if key == .space {
+            startHold(index, after: 0.35) { [weak self] in self?.beginTrackpad(touch) }
+        } else if !key.alternates.isEmpty {
+            startHold(index, after: 0.4) { [weak self] in self?.beginAccents(touch) }
+        }
+    }
 
     /// Runs `action` if the key at `index` is still down after `delay`
     /// seconds.
@@ -347,6 +380,32 @@ final class KeyboardView: UIView {
         holdTimer = nil
         holdIndex = nil
     }
+
+    // MARK: Accents
+
+    private func beginAccents(_ touch: UITouch) {
+        stopHold()
+        guard let index = touchKeys[touch] else { return }
+        let key = keyViews[index].key
+        let capitals = configuration.page == .letters && configuration.shift != .off
+        // Only this finger counts until it lifts.
+        touchKeys = [:]
+        hidePopup()
+        refresh(index)
+        accents = (touch, index)
+        accentPanel.show(
+            key.alternates.map { capitals ? $0.uppercased() : $0 },
+            keyFrame: keyViews[index].frame,
+            in: bounds
+        )
+    }
+
+    private func endAccents() {
+        accents = nil
+        accentPanel.isHidden = true
+    }
+
+    // MARK: Trackpad
 
     private func beginTrackpad(_ touch: UITouch) {
         stopHold()
@@ -528,6 +587,80 @@ private final class PopupView: UIView {
         ]
         let size = title.size(withAttributes: attributes)
         title.draw(at: CGPoint(x: head.midX - size.width / 2, y: head.midY - size.height / 2), withAttributes: attributes)
+    }
+}
+
+// MARK: - Accents
+
+/// The accents of a held key, in a row above it like Apple's. The first is
+/// nearest the key and chosen until the finger slides to another.
+private final class AccentPanel: UIView {
+    private var options: [String] = []
+    /// Left to right on screen. Reversed near the right edge, so the first
+    /// option stays next to the key.
+    private var shown: [String] = []
+    private var cells: [UILabel] = []
+    private let panel = UIView()
+    private(set) var selected: String?
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        panel.backgroundColor = .keyCharacter
+        panel.layer.cornerRadius = 9
+        panel.layer.cornerCurve = .continuous
+        panel.layer.shadowColor = UIColor.black.cgColor
+        panel.layer.shadowOpacity = 0.3
+        panel.layer.shadowRadius = 3
+        panel.layer.shadowOffset = CGSize(width: 0, height: 1)
+        addSubview(panel)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    func show(_ options: [String], keyFrame key: CGRect, in bounds: CGRect) {
+        self.options = options
+        let width = max(key.width, 30)
+        let total = width * CGFloat(options.count) + 8
+        let growsLeft = key.midX > bounds.midX
+        shown = growsLeft ? options.reversed() : options
+        var x = growsLeft ? key.maxX + 4 - total : key.minX - 4
+        x = min(max(x, bounds.minX + 2), bounds.maxX - total - 2)
+        let height = key.height + 8
+        frame = CGRect(x: x, y: max(key.minY - height - 4, 0), width: total, height: height)
+        panel.frame = self.bounds
+
+        cells.forEach { $0.removeFromSuperview() }
+        cells = shown.enumerated().map { index, option in
+            let cell = UILabel(frame: CGRect(x: 4 + CGFloat(index) * width, y: 4, width: width, height: key.height))
+            cell.text = option
+            cell.font = .systemFont(ofSize: 24)
+            cell.textAlignment = .center
+            cell.layer.cornerRadius = 7
+            cell.layer.cornerCurve = .continuous
+            cell.clipsToBounds = true
+            panel.addSubview(cell)
+            return cell
+        }
+        highlight(options.first)
+        isHidden = false
+    }
+
+    /// `x` is in this view's coordinates.
+    func select(at x: CGFloat) {
+        guard !cells.isEmpty else { return }
+        let width = cells[0].frame.width
+        let index = min(max(Int((x - 4) / width), 0), cells.count - 1)
+        highlight(shown[index])
+    }
+
+    private func highlight(_ option: String?) {
+        selected = option
+        for (cell, text) in zip(cells, shown) {
+            let on = text == option
+            cell.backgroundColor = on ? .systemBlue : .clear
+            cell.textColor = on ? .white : .label
+        }
     }
 }
 

@@ -14,6 +14,25 @@ enum Key: Hashable {
         if case .character = self { return true }
         return false
     }
+
+    /// What holding the key offers, as on Apple's keyboard: the accents
+    /// Spanish and English need, the most used first.
+    var alternates: [String] {
+        guard case .character(let text) = self else { return [] }
+        return Self.alternates[text] ?? []
+    }
+
+    private static let alternates: [String: [String]] = [
+        "a": ["á", "à", "ä", "â", "ã"],
+        "e": ["é", "è", "ë", "ê"],
+        "i": ["í", "ì", "ï", "î"],
+        "o": ["ó", "ò", "ö", "ô", "õ"],
+        "u": ["ú", "ü", "ù", "û"],
+        "n": ["ñ"],
+        "c": ["ç"],
+        "?": ["¿"],
+        "!": ["¡"],
+    ]
 }
 
 /// The pages of keys, as on Apple's keyboard.
