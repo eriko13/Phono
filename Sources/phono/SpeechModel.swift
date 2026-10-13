@@ -20,7 +20,7 @@ final class SpeechModel {
     }
     var onChange: (() -> Void)?
 
-    private var runner: Runner?
+    private var engine: (any Transcribing)?
 
     var statusText: String {
         switch state {
@@ -59,7 +59,7 @@ final class SpeechModel {
             Task { @MainActor in
                 switch result {
                 case .success(let runner):
-                    self.runner = runner
+                    self.engine = runner
                     self.state = .ready
                 case .failure(let error):
                     self.state = .failed(error.localizedDescription)
@@ -70,8 +70,8 @@ final class SpeechModel {
 
     /// 16 kHz mono samples in, text out.
     func transcribe(_ samples: [Float]) async throws -> String {
-        guard let runner else { throw SpeechError.notReady }
-        return try await runner.transcribe(samples)
+        guard let engine else { throw SpeechError.notReady }
+        return try await engine.transcribe(samples)
     }
 }
 
@@ -81,10 +81,15 @@ enum SpeechError: Error, CustomStringConvertible {
     var description: String { "the model is not loaded" }
 }
 
+/// Turns one clip of 16 kHz mono samples into text.
+protocol Transcribing: Sendable {
+    func transcribe(_ samples: [Float]) async throws -> String
+}
+
 /// Owns the `Transcriber` and runs it on one background queue, one clip at
 /// a time. The queue is the only thread that touches it, which is why the
 /// `@unchecked Sendable` is safe.
-final class Runner: @unchecked Sendable {
+final class Runner: Transcribing, @unchecked Sendable {
     static let queue = DispatchQueue(label: "phono.speech", qos: .userInitiated)
 
     private let transcriber: Transcriber
