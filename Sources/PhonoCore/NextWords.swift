@@ -1,33 +1,40 @@
 import Foundation
 
 /// Next-word predictions for the iPhone keyboard: a starter list of common
-/// word pairs, plus the pairs the user types, which count first.
+/// word pairs for each language, plus the pairs the user types, in any
+/// language, which count first.
 public struct NextWords: Sendable {
-    /// Word, then the words that most often follow it, best first. "" is the
-    /// start of a sentence, and "*" follows any word.
-    private let starter: [String: [String]]
+    /// By language, word, then the words that most often follow it, best
+    /// first. "" is the start of a sentence, and "*" follows any word.
+    private let starters: [String: [String: [String]]]
     /// How often the user typed each word after another. Kept on the phone.
     public private(set) var learned: [String: [String: Int]]
 
     /// The most pairs `learned` keeps. Past it, pairs typed once are dropped.
     static let limit = 5000
 
-    /// `starter` has one line per word: `word: next next next`. The line for
-    /// the start of a sentence begins with `:`, and the one for any word
-    /// with `*:`.
-    public init(starter text: String, learned: [String: [String: Int]] = [:]) {
+    /// `starters` maps a language code, such as `en`, to its list, with one
+    /// line per word: `word: next next next`. The line for the start of a
+    /// sentence begins with `:`, and the one for any word with `*:`.
+    public init(starters: [String: String], learned: [String: [String: Int]] = [:]) {
+        self.starters = starters.mapValues(Self.parse)
+        self.learned = learned
+    }
+
+    private static func parse(_ text: String) -> [String: [String]] {
         var starter: [String: [String]] = [:]
         for line in text.split(separator: "\n") {
             guard let colon = line.firstIndex(of: ":") else { continue }
             let key = line[..<colon].trimmingCharacters(in: .whitespaces)
             starter[key] = line[line.index(after: colon)...].split(separator: " ").map(String.init)
         }
-        self.starter = starter
-        self.learned = learned
+        return starter
     }
 
-    /// Best first. `previous` is from `Typing.previousWord`.
-    public func predictions(after previous: String?) -> [String] {
+    /// Best first. `previous` is from `Typing.previousWord`; `language` picks
+    /// the starter list.
+    public func predictions(after previous: String?, language: String) -> [String] {
+        let starter = starters[language] ?? [:]
         let key = previous ?? "*"
         let mine = (learned[key] ?? [:])
             .sorted { $0.value != $1.value ? $0.value > $1.value : $0.key < $1.key }

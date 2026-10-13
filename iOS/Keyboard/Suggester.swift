@@ -15,7 +15,6 @@ struct Suggestion: Equatable {
 @MainActor
 final class Suggester {
     private let checker = UITextChecker()
-    private let language = "en_US"
     private var nextWords: NextWords
     /// Text replacements from Settings › General › Keyboard, by shortcut.
     private var replacements: [String: String] = [:]
@@ -33,7 +32,7 @@ final class Suggester {
         let learned = Self.learnedFile
             .flatMap { try? Data(contentsOf: $0) }
             .flatMap { try? JSONDecoder().decode([String: [String: Int]].self, from: $0) } ?? [:]
-        nextWords = NextWords(starter: starter, learned: learned)
+        nextWords = NextWords(starters: ["en": starter], learned: learned)
     }
 
     /// The entries of the keyboard's `UILexicon`: what the user types, and
@@ -58,7 +57,7 @@ final class Suggester {
         // Inside a word, nothing fits.
         if let next = after.first, next.isLetter { return [] }
         let word = Typing.currentWord(before: before)
-        let likely = nextWords.predictions(after: Typing.previousWord(before: before))
+        let likely = nextWords.predictions(after: Typing.previousWord(before: before), language: "en")
 
         guard !word.isEmpty else {
             guard before.last?.isWhitespace ?? true else { return [] }
@@ -116,16 +115,22 @@ final class Suggester {
         NSRange(location: 0, length: word.utf16.count)
     }
 
+    /// The spell checker's languages, the one being written first.
+    private var languages: [String] { ["en_US"] }
+
+    /// Not a word in any of the languages.
     private func isMisspelled(_ word: String) -> Bool {
-        checker.rangeOfMisspelledWord(in: word, range: range(word), startingAt: 0, wrap: false, language: language)
-            .location != NSNotFound
+        languages.allSatisfy { language in
+            checker.rangeOfMisspelledWord(in: word, range: range(word), startingAt: 0, wrap: false, language: language)
+                .location != NSNotFound
+        }
     }
 
     private func guesses(_ word: String) -> [String] {
-        checker.guesses(forWordRange: range(word), in: word, language: language) ?? []
+        languages.flatMap { checker.guesses(forWordRange: range(word), in: word, language: $0) ?? [] }
     }
 
     private func completions(_ word: String) -> [String] {
-        checker.completions(forPartialWordRange: range(word), in: word, language: language) ?? []
+        languages.flatMap { checker.completions(forPartialWordRange: range(word), in: word, language: $0) ?? [] }
     }
 }

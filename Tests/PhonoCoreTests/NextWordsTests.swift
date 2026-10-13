@@ -9,23 +9,23 @@ final class NextWordsTests: XCTestCase {
     """
 
     func testStarterList() {
-        let words = NextWords(starter: starter)
-        XCTAssertEqual(words.predictions(after: ""), ["I", "The", "I'm"])
-        XCTAssertEqual(words.predictions(after: "thank"), ["you", "god", "the", "and", "to"])
-        XCTAssertEqual(words.predictions(after: "zebra"), ["the", "and", "to"])
-        XCTAssertEqual(words.predictions(after: nil), ["the", "and", "to"])
+        let words = NextWords(starters: ["en": starter])
+        XCTAssertEqual(words.predictions(after: "", language: "en"), ["I", "The", "I'm"])
+        XCTAssertEqual(words.predictions(after: "thank", language: "en"), ["you", "god", "the", "and", "to"])
+        XCTAssertEqual(words.predictions(after: "zebra", language: "en"), ["the", "and", "to"])
+        XCTAssertEqual(words.predictions(after: nil, language: "en"), ["the", "and", "to"])
     }
 
     func testLearnedPairsComeFirst() {
-        var words = NextWords(starter: starter)
+        var words = NextWords(starters: ["en": starter])
         words.learn("goodness", after: "thank")
         words.learn("heavens", after: "thank")
         words.learn("heavens", after: "thank")
-        XCTAssertEqual(words.predictions(after: "thank").prefix(4), ["heavens", "goodness", "you", "god"])
+        XCTAssertEqual(words.predictions(after: "thank", language: "en").prefix(4), ["heavens", "goodness", "you", "god"])
     }
 
     func testSentenceStartsAreStoredInLowercase() {
-        var words = NextWords(starter: "")
+        var words = NextWords(starters: [:])
         words.learn("Hello", after: "")
         words.learn("I'll", after: "")
         words.learn("Paris", after: "in")
@@ -34,13 +34,13 @@ final class NextWordsTests: XCTestCase {
     }
 
     func testNothingIsLearnedAfterOtherPunctuation() {
-        var words = NextWords(starter: "")
+        var words = NextWords(starters: [:])
         words.learn("then", after: nil)
         XCTAssertTrue(words.learned.isEmpty)
     }
 
     func testOldOneOffPairsGoPastTheLimit() {
-        var words = NextWords(starter: "")
+        var words = NextWords(starters: [:])
         words.learn("you", after: "thank")
         words.learn("you", after: "thank")
         for i in 0 ..< NextWords.limit {
