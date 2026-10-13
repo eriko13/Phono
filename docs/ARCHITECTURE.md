@@ -39,6 +39,8 @@ A keyboard extension cannot use the microphone, and iOS does not let an app turn
 2. A Talk press launches the app in the background if needed, and the system activates the audio session. `Dictation` opens the Recorder and starts a clip.
 3. When the press ends, the app transcribes the clip and writes the state and the text to the `group.io.github.eriko13.phono` App Group defaults, then posts a `changed` Darwin notification. The keyboard reads them and inserts the text.
 
+The keyboard is drawn with UIKit, like Apple's: letters, numbers, and symbols pages, shift and caps lock, and capitals where the text field asks for them. `KeyboardView` tracks each finger by hand, so a character is typed when its finger lifts or when the next finger lands, as fast typing needs.
+
 `KeyboardLink` in `iOS/Shared` is the whole protocol, compiled into both targets. The keyboard needs Full Access to use the App Group. It does not touch the network.
 
 ## Model
