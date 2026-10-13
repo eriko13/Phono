@@ -4,7 +4,12 @@ import PackageDescription
 let package = Package(
     name: "phono",
     platforms: [
-        .macOS(.v15)
+        .macOS(.v15),
+        .iOS(.v18)
+    ],
+    products: [
+        // Shared with the iOS app in iOS/.
+        .library(name: "PhonoCore", targets: ["PhonoCore"])
     ],
     dependencies: [
         // Fermion's runner for Phonon-2 on the Neural Engine (Apache-2.0).
