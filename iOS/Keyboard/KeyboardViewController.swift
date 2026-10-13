@@ -8,8 +8,7 @@ final class KeyboardViewController: UIInputViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        model.onNextKeyboard = { [weak self] in self?.advanceToNextInputMode() }
-        model.onKey = { [weak self] key in self?.type(key) }
+        model.onKey = { [weak self] key in self?.perform(key) }
 
         let host = UIHostingController(rootView: KeyboardView(model: model))
         host.view.backgroundColor = .clear
@@ -50,11 +49,12 @@ final class KeyboardViewController: UIInputViewController {
         textDocumentProxy.insertText(needsSpace ? " " + text : text)
     }
 
-    private func type(_ key: KeyboardModel.Key) {
+    private func perform(_ key: Key) {
         switch key {
         case .space: textDocumentProxy.insertText(" ")
         case .return: textDocumentProxy.insertText("\n")
         case .delete: textDocumentProxy.deleteBackward()
+        case .nextKeyboard: advanceToNextInputMode()
         }
     }
 }

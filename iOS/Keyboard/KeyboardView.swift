@@ -4,14 +4,11 @@ import SwiftUI
 @MainActor
 @Observable
 final class KeyboardModel {
-    enum Key { case space, `return`, delete }
-
     var state: KeyboardLink.State = .idle
     var error: String?
     var hasFullAccess = true
     var showsNextKeyboard = true
 
-    @ObservationIgnored var onNextKeyboard: () -> Void = {}
     @ObservationIgnored var onKey: (Key) -> Void = { _ in }
 }
 
@@ -29,7 +26,7 @@ struct KeyboardView: View {
 
             HStack(spacing: 8) {
                 if model.showsNextKeyboard {
-                    key("globe", label: "Next keyboard", action: model.onNextKeyboard)
+                    key("globe", label: "Next keyboard", action: { model.onKey(.nextKeyboard) })
                 }
                 Button { model.onKey(.space) } label: {
                     Text("space").frame(maxWidth: .infinity, minHeight: 44)
