@@ -1,5 +1,24 @@
 import Foundation
 
+/// How a transcript reaches the active app.
+public enum Output: String, CaseIterable, Sendable {
+    /// Clipboard, then ⌘V. The old clipboard comes back after.
+    case paste
+    /// One key event per character. Slower, but works where ⌘V does not,
+    /// and the clipboard stays as it was.
+    case type
+    /// Clipboard only.
+    case copy
+
+    public var title: String {
+        switch self {
+        case .paste: return "Paste"
+        case .type: return "Type"
+        case .copy: return "Copy only"
+        }
+    }
+}
+
 /// Every Phono setting, in one preferences domain.
 ///
 /// The binary runs both inside Phono.app (bundle id = `domain`) and as a bare
@@ -25,7 +44,9 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
 
     /// Stored key names. Changing one orphans users' saved values.
     enum Key: String {
-        case mode = "hotkeyMode", hotkey, autoPaste, appendSpace, sounds, stopSound
+        case mode = "hotkeyMode", hotkey, output, appendSpace, sounds, stopSound
+        /// Before `output`: true for paste, false for copy only.
+        case legacyAutoPaste = "autoPaste"
     }
 
     public var mode: HotkeyMode {
@@ -38,10 +59,13 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
         nonmutating set { store.set(newValue.name, forKey: Key.hotkey.rawValue) }
     }
 
-    /// Paste into the active app (needs Accessibility). Off: clipboard only.
-    public var autoPaste: Bool {
-        get { value(.autoPaste, true) }
-        nonmutating set { store.set(newValue, forKey: Key.autoPaste.rawValue) }
+    /// Paste and type need Accessibility. Without it, the text is only copied.
+    public var output: Output {
+        get {
+            Output(rawValue: value(.output, ""))
+                ?? (value(.legacyAutoPaste, true) ? .paste : .copy)
+        }
+        nonmutating set { store.set(newValue.rawValue, forKey: Key.output.rawValue) }
     }
 
     public var appendSpace: Bool {

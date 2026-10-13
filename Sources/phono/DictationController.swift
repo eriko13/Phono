@@ -195,13 +195,16 @@ final class DictationController {
                 return
             }
             remember(text)
-            switch Paster.deliver(text, autoPaste: settings.autoPaste) {
-            case .pasted:
+            let output = settings.output
+            switch Paster.deliver(text, output: output) {
+            case .inserted:
                 updateHUD { $0.hide() }
             case .copied:
-                let message = settings.autoPaste
-                    ? "Copied — allow Accessibility to paste"
-                    : "Copied to clipboard"
+                let message = switch output {
+                case .paste: "Copied — allow Accessibility to paste"
+                case .type: "Copied — allow Accessibility to type"
+                case .copy: "Copied to clipboard"
+                }
                 updateHUD { $0.flash(message, symbol: "doc.on.clipboard", seconds: 1.6) }
             }
         } catch {

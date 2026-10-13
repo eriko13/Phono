@@ -20,7 +20,7 @@ final class SettingsTests: XCTestCase {
     func testDefaults() {
         XCTAssertEqual(settings.mode, .hold)
         XCTAssertEqual(settings.hotkey.name, "option")
-        XCTAssertTrue(settings.autoPaste)
+        XCTAssertEqual(settings.output, .paste)
         XCTAssertTrue(settings.appendSpace)
         XCTAssertTrue(settings.sounds)
         XCTAssertEqual(settings.stopSound, "Bottle")
@@ -29,20 +29,30 @@ final class SettingsTests: XCTestCase {
     func testRoundTrip() {
         settings.mode = .toggle
         settings.hotkey = HotkeyPreset.named("f5")!
-        settings.autoPaste = false
+        settings.output = .type
         settings.stopSound = "Morse"
 
         XCTAssertEqual(settings.mode, .toggle)
         XCTAssertEqual(settings.hotkey.title, "F5")
-        XCTAssertFalse(settings.autoPaste)
+        XCTAssertEqual(settings.output, .type)
         XCTAssertEqual(settings.stopSound, "Morse")
+    }
+
+    func testOldPasteSwitchStillCounts() {
+        store.set(false, forKey: "autoPaste")
+        XCTAssertEqual(settings.output, .copy)
+
+        settings.output = .type
+        XCTAssertEqual(settings.output, .type)
     }
 
     func testInvalidValuesFallBack() {
         store.set("NotASound", forKey: "stopSound")
         store.set("nonsense", forKey: "hotkey")
+        store.set("nonsense", forKey: "output")
 
         XCTAssertEqual(settings.stopSound, "Bottle")
         XCTAssertEqual(settings.hotkey, .default)
+        XCTAssertEqual(settings.output, .paste)
     }
 }
