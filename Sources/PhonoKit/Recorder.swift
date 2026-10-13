@@ -2,10 +2,10 @@ import AVFoundation
 import Foundation
 import PhonoCore
 
-enum RecorderError: Error, CustomStringConvertible {
+public enum RecorderError: Error, CustomStringConvertible {
     case noInputDevice
 
-    var description: String {
+    public var description: String {
         switch self {
         case .noInputDevice: return "no microphone found"
         }
@@ -17,15 +17,17 @@ enum RecorderError: Error, CustomStringConvertible {
 /// A fresh `AVAudioEngine` per recording costs a few milliseconds and means a
 /// device change (AirPods connecting, say) between two dictations just works.
 @MainActor
-final class Recorder {
+public final class Recorder {
     private var engine: AVAudioEngine?
     private var sink: SampleSink?
 
-    var isRecording: Bool { engine != nil }
+    public var isRecording: Bool { engine != nil }
+
+    public init() {}
 
     /// Start capturing. `onLevel` gets a 0–1 loudness value for each audio
     /// buffer, on the audio thread.
-    func start(onLevel: @escaping @Sendable (Float) -> Void) throws {
+    public func start(onLevel: @escaping @Sendable (Float) -> Void) throws {
         guard engine == nil else { return }
 
         let engine = AVAudioEngine()
@@ -49,7 +51,7 @@ final class Recorder {
     }
 
     /// Stop and return everything captured since `start`.
-    func stop() -> [Float] {
+    public func stop() -> [Float] {
         guard let engine, let sink else { return [] }
         engine.inputNode.removeTap(onBus: 0)
         engine.stop()

@@ -1,10 +1,11 @@
 # Architecture
 
-Phono is one Swift package with two targets. Its one dependency is [phonon-coreml](https://github.com/fermionresearch/phonon-coreml), Fermion Research's runner for Phonon-2 on Core ML.
+Phono is one Swift package with three targets. Its one dependency is [phonon-coreml](https://github.com/fermionresearch/phonon-coreml), Fermion Research's runner for Phonon-2 on Core ML.
 
 | Target | Contents |
 |---|---|
 | `PhonoCore` | Foundation only, so it builds and tests on any platform: hotkey presets and the lone-modifier state machine, settings, where the model lives, the server request and reply, and text clean-up. |
+| `PhonoKit` | Shared by the Mac and iOS apps: `Recorder` (16 kHz mono from the microphone), the `Transcribing` protocol, and `ServerEngine`, the Phonon server client. |
 | `phono` | The macOS app and CLI in one binary. With arguments it runs as a CLI; without, as a menu-bar app. |
 
 ## Flow

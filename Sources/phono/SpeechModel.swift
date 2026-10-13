@@ -1,5 +1,6 @@
 import Foundation
 import PhonoCore
+import PhonoKit
 import PhononCoreML
 
 /// Phonon-2, either on this Mac's Neural Engine or on a Phonon server. The
@@ -131,11 +132,6 @@ enum SpeechError: Error, CustomStringConvertible {
     case notReady
 
     var description: String { "the model is not loaded" }
-}
-
-/// Turns one clip of 16 kHz mono samples into text.
-protocol Transcribing: Sendable {
-    func transcribe(_ samples: [Float]) async throws -> String
 }
 
 /// Owns the `Transcriber` and runs it on one background queue, one clip at

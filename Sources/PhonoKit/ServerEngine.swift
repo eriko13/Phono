@@ -3,9 +3,14 @@ import PhonoCore
 
 /// Phonon-2 on another machine: each clip goes to a Phonon server as a WAV
 /// file, and the text comes back.
-struct ServerEngine: Transcribing {
-    let base: URL
-    let key: String
+public struct ServerEngine: Transcribing {
+    public let base: URL
+    public let key: String
+
+    public init(base: URL, key: String) {
+        self.base = base
+        self.key = key
+    }
 
     /// Clips are at most a minute or two of audio, and the server answers in
     /// well under a second. Anything slower than this is a network problem.
@@ -20,11 +25,11 @@ struct ServerEngine: Transcribing {
     /// Throws unless the server transcribes half a second of silence. That
     /// checks the key too: `/health` answers without one, and the
     /// phonon-cuda image has no `/v1/models`.
-    func checkConnection() async throws {
+    public func checkConnection() async throws {
         _ = try await transcribe([Float](repeating: 0, count: Int(Model.sampleRate) / 2), timeout: 5)
     }
 
-    func transcribe(_ samples: [Float]) async throws -> String {
+    public func transcribe(_ samples: [Float]) async throws -> String {
         try await transcribe(samples, timeout: Self.timeout)
     }
 
@@ -52,12 +57,12 @@ struct ServerEngine: Transcribing {
     }
 }
 
-enum ServerError: Error, CustomStringConvertible, LocalizedError {
+public enum ServerError: Error, CustomStringConvertible, LocalizedError {
     case noServer
     case status(Int, String)
     case unreadableReply
 
-    var description: String {
+    public var description: String {
         switch self {
         case .noServer: return "no server set — run `phono server <url> <key>`"
         case .status(401, _): return "the server rejected the API key"
@@ -66,5 +71,5 @@ enum ServerError: Error, CustomStringConvertible, LocalizedError {
         }
     }
 
-    var errorDescription: String? { description }
+    public var errorDescription: String? { description }
 }

@@ -1,5 +1,6 @@
 import AppKit
 import PhonoCore
+import PhonoKit
 
 /// Shortcut → record → transcribe → paste.
 @MainActor
