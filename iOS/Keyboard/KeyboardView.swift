@@ -252,16 +252,19 @@ final class KeyboardView: UIView {
             accentPanel.select(at: accents.touch.location(in: accentPanel).x)
             return
         }
-        for touch in touches {
-            guard let index = touchKeys[touch], keyViews[index].key.isCharacter,
-                  let now = keyIndex(at: touch.location(in: self)), now != index,
-                  keyViews[now].key.isCharacter
-            else { continue }
-            touchKeys[touch] = now
-            if holdIndex == index { stopHold() }
-            showPopup(now)
-            holdKey(now, touch)
-        }
+        touches.forEach(slide)
+    }
+
+    /// A finger on a character can slide to the one it meant.
+    private func slide(_ touch: UITouch) {
+        guard let index = touchKeys[touch], keyViews[index].key.isCharacter,
+              let now = keyIndex(at: touch.location(in: self)), now != index,
+              keyViews[now].key.isCharacter
+        else { return }
+        touchKeys[touch] = now
+        if holdIndex == index { stopHold() }
+        showPopup(now)
+        holdKey(now, touch)
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {

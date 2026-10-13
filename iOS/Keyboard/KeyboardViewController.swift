@@ -218,13 +218,7 @@ final class KeyboardViewController: UIInputViewController {
         configuration.returnEnabled = !(proxy.enablesReturnKeyAutomatically ?? false) || proxy.hasText
         keyboard.configuration = configuration
 
-        let suggestions = autocorrects
-            ? suggester.suggestions(
-                before: proxy.documentContextBeforeInput ?? "",
-                after: proxy.documentContextAfterInput ?? "",
-                capitalizes: capitalizes
-            )
-            : []
+        let suggestions = barSuggestions()
         if let error {
             show(error, .systemRed)
         } else if state == .recording {
@@ -238,6 +232,16 @@ final class KeyboardViewController: UIInputViewController {
         } else {
             show("Press Talk at the top of the screen to dictate.", .tertiaryLabel)
         }
+    }
+
+    private func barSuggestions() -> [Suggestion] {
+        guard autocorrects else { return [] }
+        let proxy = textDocumentProxy
+        return suggester.suggestions(
+            before: proxy.documentContextBeforeInput ?? "",
+            after: proxy.documentContextAfterInput ?? "",
+            capitalizes: capitalizes
+        )
     }
 
     private func show(_ status: String, _ color: UIColor) {
