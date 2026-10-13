@@ -83,10 +83,9 @@ final class KeyboardViewController: UIInputViewController {
         state = message.state
         // A Talk press has no feel of its own, and iOS does not let the app
         // play haptics from the background, so the keyboard does.
-        if state == .recording, previous != .recording {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred(intensity: 0.6)
-        } else if previous == .recording, state != .recording {
-            UIImpactFeedbackGenerator(style: .soft).impactOccurred(intensity: 0.4)
+        // The faintest tap iOS has, the tick of a picker wheel.
+        if (state == .recording) != (previous == .recording) {
+            UISelectionFeedbackGenerator().selectionChanged()
         }
         error = message.error
         if let text = message.text, message.textID != typedTextID {
