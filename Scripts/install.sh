@@ -1,9 +1,9 @@
 #!/bin/bash
-# install.sh — set up the engine, build Phono, install it to /Applications,
-# and launch it.
+# install.sh — download the model, build Phono, install it to
+# /Applications, and launch it.
 #
-# This is Scripts/setup-engine.sh plus Scripts/bundle.sh plus the manual steps
-# that follow. Nothing here is privileged. Read it before you run it — that is
+# This is Scripts/download-model.sh plus Scripts/bundle.sh plus the manual
+# steps that follow. Nothing here is privileged. Read it before you run it — that is
 # the point of Phono being distributed as source.
 set -euo pipefail
 
@@ -16,7 +16,7 @@ BIN_NAME="phono"
 BUNDLE_ID="io.github.eriko13.phono"
 SRC="$ROOT_DIR/build/$APP_NAME.app"
 DEST="/Applications/$APP_NAME.app"
-ENGINE="$HOME/Library/Application Support/Phono/engine/.venv/bin/fermion"
+OLD_ENGINE="$HOME/Library/Application Support/Phono/engine"
 
 # --- Preflight: the Swift toolchain -----------------------------------------
 if ! command -v swift >/dev/null 2>&1; then
@@ -30,12 +30,8 @@ MSG
   exit 1
 fi
 
-# --- Engine ------------------------------------------------------------------
-if [[ -x "$ENGINE" ]]; then
-  echo "==> Engine already installed at $ENGINE"
-else
-  "$SCRIPT_DIR/setup-engine.sh"
-fi
+# --- Model -------------------------------------------------------------------
+"$SCRIPT_DIR/download-model.sh"
 
 # --- Build -------------------------------------------------------------------
 "$SCRIPT_DIR/bundle.sh"
@@ -80,7 +76,18 @@ Installed: $DEST
      Phono needs it to see the Option key on its own, and to paste.
      This build is ad-hoc signed: after each rebuild, remove the old "Phono"
      row in that list and add the new one.
-  3. Wait for the menu-bar icon to change from ⌛ to a waveform (the first
-     load takes 10–40 s), then hold ⌥ Option and talk.
+  3. Wait until the menu-bar wave is no longer dimmed. The first launch
+     prepares the model for this Mac, which takes a minute or two. Then hold
+     ⌥ Option and talk.
 
 MSG
+
+# Phono 0.1 ran a Python engine. It is no longer used.
+if [[ -d "$OLD_ENGINE" ]]; then
+  cat <<MSG
+The old Python engine is no longer used. To free about 2 GB, run:
+
+    rm -rf "$OLD_ENGINE"
+
+MSG
+fi

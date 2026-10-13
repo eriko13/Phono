@@ -76,7 +76,7 @@ final class SampleSink: @unchecked Sendable {
     private var converter: AVAudioConverter?
     private let format = AVAudioFormat(
         commonFormat: .pcmFormatFloat32,
-        sampleRate: Double(WAV.sampleRate),
+        sampleRate: Model.sampleRate,
         channels: 1,
         interleaved: false
     )!
@@ -85,7 +85,7 @@ final class SampleSink: @unchecked Sendable {
     init(onLevel: @escaping @Sendable (Float) -> Void) {
         self.onLevel = onLevel
         // About a minute of headroom before the array has to grow.
-        samples.reserveCapacity(WAV.sampleRate * 60)
+        samples.reserveCapacity(Int(Model.sampleRate) * 60)
     }
 
     func append(_ buffer: AVAudioPCMBuffer) {

@@ -6,14 +6,14 @@ import PhonoCore
 final class StatusItemController: NSObject, NSMenuDelegate {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let settings: Settings
-    private let engine: EngineController
+    private let speech: SpeechModel
     private let dictation: DictationController
     private let hotkeys: HotkeyManager
     private let recentMenu = makeMenu([])
 
-    init(settings: Settings, engine: EngineController, dictation: DictationController, hotkeys: HotkeyManager) {
+    init(settings: Settings, speech: SpeechModel, dictation: DictationController, hotkeys: HotkeyManager) {
         self.settings = settings
-        self.engine = engine
+        self.speech = speech
         self.dictation = dictation
         self.hotkeys = hotkeys
         super.init()
@@ -31,7 +31,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     func refresh() {
         let icon: StatusIcon.State = dictation.isRecording ? .recording
-            : engine.state == .ready ? .ready : .unavailable
+            : speech.state == .ready ? .ready : .unavailable
         statusItem.button?.image = StatusIcon.image(icon)
 
         rebuildRecent()
@@ -43,7 +43,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private func buildItems() -> [NSMenuItem] {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
         return [
-            MenuItem(liveTitle: { self.engine.statusText }),
+            MenuItem(liveTitle: { self.speech.statusText }),
+            MenuItem("Load Phonon-2", isShown: { self.speech.canLoad }) { self.speech.load() },
             MenuItem(liveTitle: { self.hint }),
             .separator(),
             choice(
@@ -76,8 +77,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             MenuItem("Allow Microphone…", isShown: { !Permissions.isMicrophoneGranted }) {
                 Permissions.requestMicrophone()
             },
-            MenuItem("Restart Engine") { self.engine.restart() },
-            MenuItem("Open Engine Log") { self.openLog() },
             .separator(),
             MenuItem("Phono \(version)"),
             MenuItem("Quit Phono", key: "q") { NSApp.terminate(nil) },
@@ -156,15 +155,6 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         NSApp.activate()   // an accessory app is never frontmost
         if alert.runModal() == .alertFirstButtonReturn {
             Permissions.openSettings(Permissions.keyboardPane)
-        }
-    }
-
-    private func openLog() {
-        let url = Engine.logFile(home: FileManager.default.homeDirectoryForCurrentUser)
-        if FileManager.default.fileExists(atPath: url.path) {
-            NSWorkspace.shared.open(url)
-        } else {
-            NSWorkspace.shared.activateFileViewerSelecting([url.deletingLastPathComponent()])
         }
     }
 }

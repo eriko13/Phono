@@ -24,9 +24,6 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(settings.appendSpace)
         XCTAssertTrue(settings.sounds)
         XCTAssertEqual(settings.stopSound, "Bottle")
-        XCTAssertEqual(settings.port, Settings.defaultPort)
-        XCTAssertNil(settings.enginePath)
-        XCTAssertEqual(settings.hotwords, [])
     }
 
     func testRoundTrip() {
@@ -41,23 +38,11 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(settings.stopSound, "Morse")
     }
 
-    func testValuesWrittenWithDefaultsWrite() {
-        store.set(9000, forKey: "enginePort")
-        store.set("~/bin/fermion", forKey: "enginePath")
-        store.set("Ada, Quillon", forKey: "hotwords")
-
-        XCTAssertEqual(settings.port, 9000)
-        XCTAssertEqual(settings.enginePath, "~/bin/fermion")
-        XCTAssertEqual(settings.hotwords, ["Ada", "Quillon"])
-    }
-
     func testInvalidValuesFallBack() {
         store.set("NotASound", forKey: "stopSound")
-        store.set(80, forKey: "enginePort")
         store.set("nonsense", forKey: "hotkey")
 
         XCTAssertEqual(settings.stopSound, "Bottle")
-        XCTAssertEqual(settings.port, Settings.defaultPort)
         XCTAssertEqual(settings.hotkey, .default)
     }
 }

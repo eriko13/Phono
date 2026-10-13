@@ -4,13 +4,28 @@
 
 Dictation for macOS that runs entirely on your Mac. Hold ⌥ Option, speak, and let go. The text is typed where your cursor is.
 
-Phono uses [Phonon-2](https://huggingface.co/FermionResearch/Phonon-2), a 164 MB English speech model. Audio never leaves your computer.
+Phono runs [Phonon-2](https://huggingface.co/FermionResearch/Phonon-2), an English speech model, on the Mac's Neural Engine. It is one small native app and one model file: no Python, no account, no network.
+
+## Phono and Detta
+
+[Detta](https://www.fermionresearch.com/products/detta/) is Fermion Research's own dictation app for Phonon-2. It does more: it removes filler words, formats numbers and dates, saves Quick Notes, and transcribes video files. Phono does one thing: it turns speech into text.
+
+| | Phono | Detta 1.0.26 |
+|---|---|---|
+| Download and install | 345 MB model, 0.4 MB app | 1.3 GB app |
+| What it installs | the app and Phonon-2 | the app, Phonon-2, Python 3.12 with 45 packages, and a second AI model for text clean-up |
+| Account | none | Google sign-in |
+| Your recordings | never leave your Mac | shared with Fermion by default, unless you turn it off |
+| Network after install | none | update check every hour |
+| macOS | 15 or later | 26.2 or later |
+| Source | about 1,700 lines of Swift, MIT | closed |
+
+Both apps run the same Phonon-2 model file on the Neural Engine, so the accuracy is the same: 5.21% word error on the Open ASR Leaderboard. On the first launch, Core ML also stores a compiled copy of the model for your Mac. For Phono it is about 300 MB. To compare disk and memory on your own Mac, open both apps and run `./Scripts/stats.sh Detta`.
 
 ## Requirements
 
 - A Mac with Apple silicon, macOS 15 or later
 - Xcode Command Line Tools: `xcode-select --install`
-- Python 3.10 or later: `brew install python@3.12`
 
 ## Install
 
@@ -20,11 +35,11 @@ cd Phono
 ./Scripts/install.sh
 ```
 
-The script installs the speech engine, builds Phono, copies it to `/Applications`, and opens it. Then:
+The script downloads the model (345 MB), builds Phono, copies it to `/Applications`, and opens it. Then:
 
 1. Allow microphone access.
 2. Allow Phono in **System Settings › Privacy & Security › Accessibility**. Phono needs this to see the Option key and to paste.
-3. Wait until the menu-bar icon changes from ⌛ to a waveform. The first start can take a minute.
+3. Wait until the menu-bar wave is no longer dimmed. On the first launch, macOS prepares the model for your Mac. This takes a minute or two and happens once.
 
 To update, run `git pull` and `./Scripts/install.sh` again. macOS treats each build as a new app, so remove the old Phono entry from the Accessibility list and allow the new one.
 
@@ -41,46 +56,29 @@ Settings are in the menu-bar menu:
 - **Paste into active app**: turn off to only copy the text.
 - **Recent**: your last 10 transcripts. Click one to copy it again.
 
-### More settings
-
-These have no menu item. Set them in Terminal, then quit and reopen Phono.
-
-```sh
-# Names and terms to recognize better (up to 25)
-defaults write io.github.eriko13.phono hotwords "Ada, Quillon"
-
-# The local port of the engine (default 8178)
-defaults write io.github.eriko13.phono enginePort 8178
-
-# A fermion binary in a non-standard place
-defaults write io.github.eriko13.phono enginePath ~/bin/fermion
-```
-
 ### Command line
 
 ```sh
-/Applications/Phono.app/Contents/MacOS/phono transcribe meeting.wav
+/Applications/Phono.app/Contents/MacOS/phono transcribe meeting.m4a
 /Applications/Phono.app/Contents/MacOS/phono status
 ```
 
-`transcribe` reads wav, flac, ogg, and aiff files. Phono must be running.
+`transcribe` reads wav, m4a, mp3, aiff, caf, and flac files of any length. Phono does not need to be running.
 
 ## Troubleshooting
 
 | Problem | Fix |
 |---|---|
-| The icon shows a crossed-out waveform | The engine did not start. Choose **Open Engine Log** in the menu. |
+| The menu says the model is not downloaded | Run `./Scripts/download-model.sh`, then choose **Load Phonon-2** in the menu. |
 | Holding Option does nothing | Allow Phono in Accessibility. After a rebuild, remove the old entry first. |
 | The text is copied but not pasted | The same Accessibility fix. |
 
 ## Uninstall
 
 ```sh
-rm -rf /Applications/Phono.app ~/Library/Application\ Support/Phono ~/Library/Logs/Phono
+rm -rf /Applications/Phono.app ~/Library/Application\ Support/Phono ~/Library/Caches/phonon-coreml
 defaults delete io.github.eriko13.phono
 ```
-
-The engine keeps its model download in its cache folder, usually under `~/.cache`.
 
 ## Development
 
@@ -94,4 +92,4 @@ swift test             # tests for PhonoCore
 
 ## License
 
-Phono is MIT licensed. Phonon-2 is CC-BY-4.0, by FermionResearch, based on NVIDIA's parakeet-tdt-0.6b-v3. Phono does not include the model; the setup script downloads it.
+Phono is MIT licensed. It uses [phonon-coreml](https://github.com/fermionresearch/phonon-coreml) by Fermion Research (Apache-2.0). Phonon-2 is CC-BY-4.0, by Fermion Research, based on NVIDIA's parakeet-tdt-0.6b-v3. Phono does not include the model; the install script downloads it.

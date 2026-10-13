@@ -20,13 +20,13 @@ app.run()
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = Settings.shared
-    private var engine: EngineController!
+    private var speech: SpeechModel!
     private var hotkeys: HotkeyManager!
     private var statusItem: StatusItemController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        engine = EngineController(settings: settings)
-        let dictation = DictationController(settings: settings, engine: engine)
+        speech = SpeechModel()
+        let dictation = DictationController(settings: settings, speech: speech)
 
         hotkeys = HotkeyManager()
         hotkeys.onPress = { dictation.hotkeyPressed() }
@@ -35,19 +35,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.register(settings.hotkey)
 
         statusItem = StatusItemController(
-            settings: settings, engine: engine, dictation: dictation, hotkeys: hotkeys)
-        engine.onChange = { [weak self] in self?.statusItem.refresh() }
+            settings: settings, speech: speech, dictation: dictation, hotkeys: hotkeys)
+        speech.onChange = { [weak self] in self?.statusItem.refresh() }
         dictation.onChange = { [weak self] in self?.statusItem.refresh() }
 
         // Ask up front, so the first dictation works.
         if Permissions.isMicrophoneUndetermined { Permissions.requestMicrophone() }
         if settings.autoPaste || settings.hotkey.isModifierOnly { Permissions.promptAccessibility() }
 
-        engine.start()
+        speech.load()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         hotkeys.unregister()
-        engine.stop()
     }
 }
