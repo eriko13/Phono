@@ -47,7 +47,7 @@ final class KeyboardViewController: UIInputViewController {
         super.viewWillAppear(animated)
         // Text the app sent while another field was active is not for this one.
         _ = KeyboardLink.takeText()
-        state = KeyboardLink.state
+        state = KeyboardLink.read().state
         error = nil
         keyboard.configuration.page = .letters
         keyboard.configuration.shift = .off
@@ -76,7 +76,8 @@ final class KeyboardViewController: UIInputViewController {
 
     private func appChanged() {
         let previous = state
-        state = KeyboardLink.state
+        let message = KeyboardLink.read()
+        state = message.state
         // A Talk press has no feel of its own, and iOS does not let the app
         // play haptics from the background, so the keyboard does.
         if state == .recording, previous != .recording {
@@ -84,7 +85,7 @@ final class KeyboardViewController: UIInputViewController {
         } else if previous == .recording, state != .recording {
             UIImpactFeedbackGenerator(style: .light).impactOccurred()
         }
-        error = KeyboardLink.error
+        error = message.error
         if let text = KeyboardLink.takeText() { insert(text) }
         update()
     }

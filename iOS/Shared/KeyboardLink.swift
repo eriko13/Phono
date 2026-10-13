@@ -32,12 +32,17 @@ enum KeyboardLink {
 
     // MARK: Keyboard side
 
-    static var state: State {
-        defaults?.string(forKey: "state").flatMap(State.init) ?? .idle
+    /// What the app last published.
+    struct Message {
+        var state: State = .idle
+        var error: String?
     }
 
-    static var error: String? {
-        defaults?.string(forKey: "error")
+    static func read() -> Message {
+        Message(
+            state: defaults?.string(forKey: "state").flatMap(State.init) ?? .idle,
+            error: defaults?.string(forKey: "error")
+        )
     }
 
     /// The text the app sent, once.
