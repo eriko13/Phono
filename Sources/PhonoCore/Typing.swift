@@ -20,7 +20,7 @@ public enum Typing {
             if last.isNewline { return true }
             guard last == " " else { return false }
             guard let end = before.last(where: { $0 != " " }) else { return true }
-            return ".!?".contains(end) || end.isNewline
+            return endsSentence(end)
         }
     }
 
@@ -43,7 +43,7 @@ public enum Typing {
         let text = before.dropLast(currentWord(before: before).count)
         let trimmed = text.reversed().drop { $0 == " " }
         guard let last = trimmed.first else { return "" }
-        if ".!?".contains(last) || last.isNewline { return "" }
+        if endsSentence(last) { return "" }
         guard isWordCharacter(last) else { return nil }
         return String(trimmed.prefix(while: isWordCharacter).reversed()).lowercased()
     }
@@ -93,6 +93,10 @@ public enum Typing {
             }
         }
         return table[a.count][b.count]
+    }
+
+    private static func endsSentence(_ c: Character) -> Bool {
+        ".!?".contains(c) || c.isNewline
     }
 
     private static func isWordCharacter(_ c: Character) -> Bool {
