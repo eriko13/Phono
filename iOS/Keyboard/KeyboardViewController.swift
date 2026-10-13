@@ -75,7 +75,15 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func appChanged() {
+        let previous = state
         state = KeyboardLink.state
+        // A Talk press has no feel of its own, and iOS does not let the app
+        // play haptics from the background, so the keyboard does.
+        if state == .recording, previous != .recording {
+            UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        } else if previous == .recording, state != .recording {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        }
         error = KeyboardLink.error
         if let text = KeyboardLink.takeText() { insert(text) }
         update()

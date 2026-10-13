@@ -4,7 +4,7 @@ Phono is one Swift package with three targets. Its one dependency is [phonon-cor
 
 | Target | Contents |
 |---|---|
-| `PhonoCore` | Foundation only, so it builds and tests on any platform: hotkey presets and the lone-modifier state machine, settings, where the model lives, the server request and reply, and text clean-up. |
+| `PhonoCore` | Foundation only, so it builds and tests on any platform: hotkey presets and the lone-modifier state machine, settings, where the model lives, the server request and reply, text clean-up, and the iPhone keyboard's typing rules and next-word predictions. |
 | `PhonoKit` | Shared by the Mac and iOS apps: `Recorder` (16 kHz mono from the microphone), the `Transcribing` protocol, and `ServerEngine`, the Phonon server client. |
 | `phono` | The macOS app and CLI in one binary. With arguments it runs as a CLI; without, as a menu-bar app. |
 
@@ -39,7 +39,9 @@ A keyboard extension cannot use the microphone, and iOS does not let an app turn
 2. A Talk press launches the app in the background if needed, and the system activates the audio session. `Dictation` opens the Recorder and starts a clip.
 3. When the press ends, the app transcribes the clip and writes the state and the text to the `group.io.github.eriko13.phono` App Group defaults, then posts a `changed` Darwin notification. The keyboard reads them and inserts the text.
 
-The keyboard is drawn with UIKit, like Apple's: letters, numbers, and symbols pages, shift and caps lock, and capitals where the text field asks for them. `KeyboardView` tracks each finger by hand, so a character is typed when its finger lifts or when the next finger lands, as fast typing needs.
+The keyboard is drawn with UIKit, like Apple's: letters, numbers, and symbols pages, shift and caps lock, and capitals where the text field asks for them. `KeyboardView` tracks each finger by hand, so a character is typed when its finger lifts or when the next finger lands, as fast typing needs. Holding the space bar turns the keys into a trackpad that moves the cursor left and right; iOS gives a keyboard no way to move it up or down.
+
+The bar above the keys shows suggestions. `Suggester` gets completions and fixes from iOS's spell checker (`UITextChecker`), and text replacements and contact names from `UILexicon`. Space applies the highlighted fix, and delete right after undoes it. After a space, `NextWords` predicts the next word: a starter list in `next-words.txt`, plus the word pairs the user types, saved in the App Group container. The rules that need no UIKit, in `Typing` and `NextWords`, are in PhonoCore with tests.
 
 `KeyboardLink` in `iOS/Shared` is the whole protocol, compiled into both targets. The keyboard needs Full Access to use the App Group. It does not touch the network.
 
