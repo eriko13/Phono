@@ -11,12 +11,16 @@ func runCLI(_ args: [String]) -> Int32 {
     case ("status", 1):
         printStatus(model: model)
         return 0
+    case ("server", 2...3):
+        return setServer(Array(args.dropFirst()))
     default:
         printError("""
             usage:
               phono                     start the menu-bar app
               phono transcribe <file>   print the text of a wav, m4a, mp3, aiff, caf, or flac file
               phono status              show the model, permissions, and settings
+              phono server <url> [key]  dictate through a Phonon server, such as http://overmn:8000
+              phono server off          dictate on this Mac again
             """)
         return 2
     }
@@ -41,9 +45,30 @@ private func transcribe(path: String, model: URL) -> Int32 {
     }
 }
 
+/// The menu has no text fields, so the server is set here. The running app
+/// picks it up when Engine is chosen in the menu, or on its next launch.
+private func setServer(_ args: [String]) -> Int32 {
+    let settings = Settings.shared
+    if args == ["off"] {
+        settings.engine = .local
+        print("Engine: This Mac. Quit and reopen Phono to switch now.")
+        return 0
+    }
+    guard let base = Server.baseURL(args[0]) else {
+        printError("not a server URL: \(args[0]) (expected something like http://overmn:8000)")
+        return 2
+    }
+    settings.serverURL = base.absoluteString
+    if args.count == 2 { settings.serverKey = args[1] }
+    settings.engine = .server
+    print("Engine: \(base.absoluteString). Quit and reopen Phono, or choose Engine › Server in its menu.")
+    return 0
+}
+
 private func printStatus(model: URL) {
     let settings = Settings.shared
     let rows = [
+        ("Engine", settings.engine == .server ? settings.serverURL : Engine.local.title),
         ("Model", Model.isInstalled(at: model) ? model.path : "not downloaded (run Scripts/download-model.sh)"),
         ("Accessibility", Permissions.isAccessibilityGranted ? "granted" : "not granted"),
         ("Microphone", Permissions.microphoneStatus),

@@ -45,6 +45,7 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
     /// Stored key names. Changing one orphans users' saved values.
     enum Key: String {
         case mode = "hotkeyMode", hotkey, output, appendSpace, sounds, stopSound
+        case engine, serverURL, serverKey
         /// Before `output`: true for paste, false for copy only.
         case legacyAutoPaste = "autoPaste"
     }
@@ -84,6 +85,24 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
             return Self.stopSounds.contains(name) ? name : Self.stopSounds[0]
         }
         nonmutating set { store.set(newValue, forKey: Key.stopSound.rawValue) }
+    }
+
+    public var engine: Engine {
+        get { Engine(rawValue: value(.engine, "")) ?? .local }
+        nonmutating set { store.set(newValue.rawValue, forKey: Key.engine.rawValue) }
+    }
+
+    /// As typed, for example `http://overmn:8000`. Read it through
+    /// `Server.baseURL`.
+    public var serverURL: String {
+        get { value(.serverURL, "") }
+        nonmutating set { store.set(newValue, forKey: Key.serverURL.rawValue) }
+    }
+
+    /// Sent as `Authorization: Bearer <key>`. Empty: no header.
+    public var serverKey: String {
+        get { value(.serverKey, "") }
+        nonmutating set { store.set(newValue, forKey: Key.serverKey.rawValue) }
     }
 
     /// `object(forKey:)`, so a value never set reads as `fallback`, not as

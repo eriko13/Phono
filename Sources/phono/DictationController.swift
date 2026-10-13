@@ -94,7 +94,7 @@ final class DictationController {
         case .ready:
             break
         case .loading:
-            return Problem(message: "Phonon-2 is still loading…", symbol: "hourglass")
+            return Problem(message: speech.statusText, symbol: "hourglass")
         case .notInstalled, .failed:
             return Problem(message: speech.statusText, symbol: "exclamationmark.circle")
         }

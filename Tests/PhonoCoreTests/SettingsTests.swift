@@ -24,6 +24,9 @@ final class SettingsTests: XCTestCase {
         XCTAssertTrue(settings.appendSpace)
         XCTAssertTrue(settings.sounds)
         XCTAssertEqual(settings.stopSound, "Bottle")
+        XCTAssertEqual(settings.engine, .local)
+        XCTAssertEqual(settings.serverURL, "")
+        XCTAssertEqual(settings.serverKey, "")
     }
 
     func testRoundTrip() {
@@ -31,11 +34,17 @@ final class SettingsTests: XCTestCase {
         settings.hotkey = HotkeyPreset.named("f5")!
         settings.output = .type
         settings.stopSound = "Morse"
+        settings.engine = .server
+        settings.serverURL = "http://overmn:8000"
+        settings.serverKey = "secret"
 
         XCTAssertEqual(settings.mode, .toggle)
         XCTAssertEqual(settings.hotkey.title, "F5")
         XCTAssertEqual(settings.output, .type)
         XCTAssertEqual(settings.stopSound, "Morse")
+        XCTAssertEqual(settings.engine, .server)
+        XCTAssertEqual(settings.serverURL, "http://overmn:8000")
+        XCTAssertEqual(settings.serverKey, "secret")
     }
 
     func testOldPasteSwitchStillCounts() {
@@ -50,9 +59,11 @@ final class SettingsTests: XCTestCase {
         store.set("NotASound", forKey: "stopSound")
         store.set("nonsense", forKey: "hotkey")
         store.set("nonsense", forKey: "output")
+        store.set("nonsense", forKey: "engine")
 
         XCTAssertEqual(settings.stopSound, "Bottle")
         XCTAssertEqual(settings.hotkey, .default)
         XCTAssertEqual(settings.output, .paste)
+        XCTAssertEqual(settings.engine, .local)
     }
 }

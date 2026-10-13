@@ -4,7 +4,7 @@ Phono is one Swift package with two targets. Its one dependency is [phonon-corem
 
 | Target | Contents |
 |---|---|
-| `PhonoCore` | Foundation only, so it builds and tests on any platform: hotkey presets and the lone-modifier state machine, settings, where the model lives, and text clean-up. |
+| `PhonoCore` | Foundation only, so it builds and tests on any platform: hotkey presets and the lone-modifier state machine, settings, where the model lives, the server request and reply, and text clean-up. |
 | `phono` | The macOS app and CLI in one binary. With arguments it runs as a CLI; without, as a menu-bar app. |
 
 ## Flow
@@ -13,11 +13,13 @@ Phono is one Swift package with two targets. Its one dependency is [phonon-corem
 HotkeyManager ─► DictationController ─► Recorder (16 kHz mono)
                         │
                         ├─► SpeechModel ─► Phonon-2 (Core ML, Neural Engine)
+                        │              └─► or a Phonon server (HTTP)
                         │
                         └─► Paster (⌘V or typing) and HUD
 ```
 
 - **SpeechModel** loads Phonon-2 at launch on a background queue and keeps it in memory. On the first launch, Core ML compiles the model for the Mac's Neural Engine, which takes a minute or two; later launches load in about a second. Each clip runs on one serial queue.
+- **SpeechModel** holds one `Transcribing` engine, chosen by the Engine setting. `Runner` runs Phonon-2 in this process. `ServerEngine` posts each clip as a 16-bit WAV to a Phonon server's `/v1/audio/transcriptions` (OpenAI's audio API) with a bearer key. It counts as ready once the server transcribes half a second of silence, which also checks the key. Switching engines drops the old one, so the local model's memory is freed.
 - **HotkeyManager** registers key combinations with Carbon. A lone modifier (⌥, fn) cannot be registered that way, so it watches global key events instead, which needs Accessibility. `ModifierTriggerState` decides what counts as a press: if another key, modifier, or click joins, the press is interrupted and the audio discarded.
 - **DictationController** records from the first instant of a lone-modifier press, but shows the HUD and plays the sound only after 250 ms, so quick taps and ⌥← stay invisible.
 - **Recorder** converts to 16 kHz mono on the audio thread. Its tap closure is built outside the main actor, because Swift 6 traps when the audio thread calls a main-actor closure.

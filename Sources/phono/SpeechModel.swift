@@ -2,8 +2,9 @@ import Foundation
 import PhonoCore
 import PhononCoreML
 
-/// Phonon-2 on the Neural Engine, in this process. It loads once at launch
-/// and stays in memory, so each dictation only pays for inference.
+/// Phonon-2, either on this Mac's Neural Engine or on a Phonon server. The
+/// local model loads once and stays in memory, so each dictation only pays
+/// for inference.
 @MainActor
 final class SpeechModel {
     enum State: Equatable {
@@ -20,15 +21,31 @@ final class SpeechModel {
     }
     var onChange: (() -> Void)?
 
+    private let settings: Settings
     private var engine: (any Transcribing)?
+    /// Bumped by every `load()`, so a slow load for an engine the user has
+    /// since switched away from cannot win.
+    private var generation = 0
+
+    init(settings: Settings) {
+        self.settings = settings
+    }
+
+    /// The server's host name, for the menu.
+    var serverName: String {
+        Server.baseURL(settings.serverURL)?.host ?? "server"
+    }
 
     var statusText: String {
-        switch state {
-        case .notInstalled: return "Model not downloaded — run Scripts/download-model.sh"
-        case .loading(firstRun: false): return "Loading Phonon-2…"
-        case .loading(firstRun: true): return "Preparing Phonon-2 for this Mac (once, 1–2 min)…"
-        case .ready: return "Phonon-2 ready"
-        case .failed(let reason): return "Phonon-2 failed: \(reason)"
+        switch (state, settings.engine) {
+        case (.notInstalled, _): return "Model not downloaded — run Scripts/download-model.sh"
+        case (.loading, .server): return "Connecting to \(serverName)…"
+        case (.loading(firstRun: false), .local): return "Loading Phonon-2…"
+        case (.loading(firstRun: true), _): return "Preparing Phonon-2 for this Mac (once, 1–2 min)…"
+        case (.ready, .server): return "Phonon-2 on \(serverName)"
+        case (.ready, .local): return "Phonon-2 ready"
+        case (.failed(let reason), .server): return "\(serverName) failed: \(reason)"
+        case (.failed(let reason), .local): return "Phonon-2 failed: \(reason)"
         }
     }
 
@@ -40,7 +57,18 @@ final class SpeechModel {
         }
     }
 
+    /// Load the engine the settings name. Switching to the server frees the
+    /// local model's memory.
     func load() {
+        generation += 1
+        engine = nil
+        switch settings.engine {
+        case .local: loadLocal(generation)
+        case .server: connect(generation)
+        }
+    }
+
+    private func loadLocal(_ generation: Int) {
         let directory = Model.directory(home: FileManager.default.homeDirectoryForCurrentUser)
         guard Model.isInstalled(at: directory) else {
             state = .notInstalled
@@ -52,19 +80,43 @@ final class SpeechModel {
                 try Runner(directory: directory) { phase in
                     guard phase == "compiling" else { return }
                     Task { @MainActor in
+                        guard generation == self.generation else { return }
                         if case .loading = self.state { self.state = .loading(firstRun: true) }
                     }
                 }
             }
             Task { @MainActor in
-                switch result {
-                case .success(let runner):
-                    self.engine = runner
-                    self.state = .ready
-                case .failure(let error):
-                    self.state = .failed(error.localizedDescription)
-                }
+                self.finish(generation, result.map { $0 })
             }
+        }
+    }
+
+    /// The server is ready once it answers and accepts the key.
+    private func connect(_ generation: Int) {
+        guard let base = Server.baseURL(settings.serverURL) else {
+            state = .failed(ServerError.noServer.description)
+            return
+        }
+        state = .loading(firstRun: false)
+        let server = ServerEngine(base: base, key: settings.serverKey)
+        Task {
+            do {
+                try await server.checkConnection()
+                finish(generation, .success(server))
+            } catch {
+                finish(generation, .failure(error))
+            }
+        }
+    }
+
+    private func finish(_ generation: Int, _ result: Result<any Transcribing, any Error>) {
+        guard generation == self.generation else { return }
+        switch result {
+        case .success(let engine):
+            self.engine = engine
+            state = .ready
+        case .failure(let error):
+            state = .failed(error.localizedDescription)
         }
     }
 

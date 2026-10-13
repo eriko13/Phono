@@ -82,7 +82,13 @@ cat > "$APP_DIR/Contents/Info.plist" <<PLIST
     <key>LSUIElement</key>
     <true/>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Phono records while you hold the dictation shortcut. Audio is transcribed on this Mac and never leaves it.</string>
+    <string>Phono records while you hold the dictation shortcut. Audio is transcribed on this Mac, or on your own Phonon server if you set one.</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <!-- A Phonon server on a tailnet or LAN is usually plain http. -->
+        <key>NSAllowsLocalNetworking</key>
+        <true/>
+    </dict>
     <key>NSHumanReadableCopyright</key>
     <string>Copyright © $YEAR Phono contributors. MIT License.</string>
 </dict>

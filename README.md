@@ -68,6 +68,31 @@ Settings are in the menu-bar menu:
 
 `transcribe` reads wav, m4a, mp3, aiff, caf, and flac files of any length. Phono does not need to be running.
 
+### Use a server instead of this Mac
+
+Phono can send each clip to a Phonon server, such as a Linux machine with an NVIDIA GPU, and paste the text that comes back. It is the same Phonon-2 model, so the text is the same. Your audio leaves your Mac, but only for the server you set.
+
+1. On the server, start Fermion's CUDA image with an API key. It needs Docker and the NVIDIA Container Toolkit.
+
+   ```sh
+   mkdir -p ~/.config/phonon && echo "PHONON_API_KEY=$(openssl rand -hex 24)" > ~/.config/phonon/env
+   docker run -d --name phonon --restart unless-stopped --gpus all \
+     --env-file ~/.config/phonon/env -v phonon-cache:/home/phonon/.cache \
+     -p 100.x.y.z:8000:8000 ghcr.io/fermionresearch/phonon-cuda:1.0.6 \
+     serve --model phonon-2 --host 0.0.0.0 --port 8000
+   ```
+
+   Replace `100.x.y.z` with the server's Tailscale IP, so only your tailnet can reach it. For a server without a GPU, use `ghcr.io/fermionresearch/phonon-cpu:2.0.7` and drop `--gpus all`.
+2. On the Mac, point Phono at it:
+
+   ```sh
+   /Applications/Phono.app/Contents/MacOS/phono server http://overmn:8000 <key>
+   ```
+
+3. Quit and reopen Phono. The menu shows **Phonon-2 on overmn**.
+
+**Engine** in the menu switches between the server and this Mac. `phono server off` switches back from the command line. Use the server's short name (`overmn`) or its IP address: the app allows plain http only on the local network. The key is stored in Phono's preferences, in plain text. `phono transcribe` always runs on this Mac.
+
 ## Troubleshooting
 
 | Problem | Fix |
@@ -76,6 +101,7 @@ Settings are in the menu-bar menu:
 | Holding Option does nothing | Allow Phono in Accessibility. After a rebuild, remove the old entry first. |
 | The text is copied but not pasted | The same Accessibility fix. |
 | An app does not accept the pasted text | Set **Output** to **Type**. |
+| The menu says the server failed | Check that `curl http://overmn:8000/health` answers, then choose **Reconnect**. |
 
 ## Uninstall
 

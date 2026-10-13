@@ -25,7 +25,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: StatusItemController!
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        speech = SpeechModel()
+        speech = SpeechModel(settings: settings)
         let dictation = DictationController(settings: settings, speech: speech)
 
         hotkeys = HotkeyManager()

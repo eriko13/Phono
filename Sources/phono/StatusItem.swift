@@ -44,9 +44,23 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "dev"
         return [
             MenuItem(liveTitle: { self.speech.statusText }),
-            MenuItem("Load Phonon-2", isShown: { self.speech.canLoad }) { self.speech.load() },
+            MenuItem("Load Phonon-2", isShown: { self.speech.canLoad && self.settings.engine == .local }) {
+                self.speech.load()
+            },
+            MenuItem("Reconnect", isShown: { self.speech.canLoad && self.settings.engine == .server }) {
+                self.speech.load()
+            },
             MenuItem(liveTitle: { self.hint }),
             .separator(),
+            choice(
+                "Engine", Engine.allCases.map { (self.engineTitle($0), $0) },
+                current: { self.settings.engine }, label: { self.engineTitle($0) },
+                isShown: { !self.settings.serverURL.isEmpty }
+            ) {
+                guard $0 != self.settings.engine else { return }
+                self.settings.engine = $0
+                self.speech.load()
+            },
             choice(
                 "Mode", HotkeyMode.allCases.map { ($0.title, $0) },
                 current: { self.settings.mode }, label: { $0.title }
@@ -87,6 +101,10 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         ]
     }
 
+    private func engineTitle(_ engine: Engine) -> String {
+        engine == .server ? "\(engine.title) (\(speech.serverName))" : engine.title
+    }
+
     private var hint: String {
         let shortcut = settings.hotkey.title
         if hotkeys.registered == nil { return "\(shortcut) is taken by another app" }
@@ -102,6 +120,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         current: @escaping () -> T,
         label: @escaping (T) -> String,
         separatorBefore: Int? = nil,
+        isShown: (() -> Bool)? = nil,
         select: @escaping (T) -> Void
     ) -> MenuItem {
         var items: [NSMenuItem] = options.map { name, value in
@@ -111,7 +130,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             }
         }
         if let separatorBefore { items.insert(.separator(), at: separatorBefore) }
-        return MenuItem(liveTitle: { "\(title): \(label(current()))" }, submenu: makeMenu(items))
+        return MenuItem(liveTitle: { "\(title): \(label(current()))" }, isShown: isShown, submenu: makeMenu(items))
     }
 
     private func toggle(_ title: String, _ setting: ReferenceWritableKeyPath<Settings, Bool>) -> MenuItem {
