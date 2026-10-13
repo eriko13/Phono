@@ -28,8 +28,11 @@ final class KeyboardViewController: UIInputViewController {
             self?.textDocumentProxy.adjustTextPosition(byCharacterOffset: offset)
         }
         keyboard.bar.onChoose = { [weak self] suggestion in self?.choose(suggestion) }
-        requestSupplementaryLexicon { [weak self] lexicon in
-            self?.suggester.use(lexicon.entries.map { ($0.userInput, $0.documentText) })
+        // The reply comes on a background queue. A main-actor closure here
+        // makes Swift 6 stop the keyboard, so it hops to the main actor.
+        requestSupplementaryLexicon { @Sendable [weak self] lexicon in
+            let entries = lexicon.entries.map { (input: $0.userInput, text: $0.documentText) }
+            Task { @MainActor in self?.suggester.use(entries) }
         }
         keyboard.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(keyboard)
