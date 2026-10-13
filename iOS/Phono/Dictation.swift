@@ -150,21 +150,20 @@ final class Dictation {
             closeMic()
         }
         level = 0
-        await transcribe(samples)
+        if let text = await transcribe(samples) { deliver(text) }
         // The session may have ended while the clip was transcribing.
         if !keyboardSession { closeMic() }
     }
 
-    /// Sends the clip to the server, then hands the text to the keyboard or
-    /// copies it.
-    private func transcribe(_ samples: [Float]) async {
+    /// Sends the clip to the server. nil: no text, or it failed.
+    private func transcribe(_ samples: [Float]) async -> String? {
         guard Model.duration(sampleCount: samples.count) >= 0.3 else {
             state = .idle
-            return
+            return nil
         }
         guard let base = Server.baseURL(settings.serverURL) else {
             state = .failed("Set your server in Settings first.")
-            return
+            return nil
         }
 
         state = .transcribing
@@ -174,20 +173,26 @@ final class Dictation {
             let text = try await server.transcribe(samples)
             guard let text = Transcript.finalize(text, appendSpace: false) else {
                 state = .idle
-                return
+                return nil
             }
             transcripts.insert(text, at: 0)
             transcripts = Array(transcripts.prefix(10))
-            if forKeyboard {
-                KeyboardLink.send(text)
-            }
-            // The Phono keyboard may not be showing.
-            if !forKeyboard || fromTalk {
-                copy(text)
-            }
             state = .idle
+            return text
         } catch {
             state = .failed(error.localizedDescription)
+            return nil
+        }
+    }
+
+    /// Hands the text to the keyboard or copies it.
+    private func deliver(_ text: String) {
+        if forKeyboard {
+            KeyboardLink.send(text)
+        }
+        // The Phono keyboard may not be showing.
+        if !forKeyboard || fromTalk {
+            copy(text)
         }
     }
 
@@ -219,7 +224,7 @@ final class Dictation {
         let task = UIApplication.shared.beginBackgroundTask()
         state = .transcribing
         publish()
-        await transcribe(samples)
+        if let text = await transcribe(samples) { deliver(text) }
         fromTalk = false
         publish()
         UIApplication.shared.endBackgroundTask(task)
