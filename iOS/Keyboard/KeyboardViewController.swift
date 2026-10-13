@@ -142,8 +142,7 @@ final class KeyboardViewController: UIInputViewController {
     }
 
     private func show(_ status: String, _ color: UIColor) {
-        keyboard.status.text = status
-        keyboard.status.textColor = color
+        keyboard.bar.show(status: status, color: color)
     }
 
     /// Whether the next letter starts a sentence or word, as the field asks.

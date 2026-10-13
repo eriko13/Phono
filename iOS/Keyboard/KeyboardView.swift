@@ -1,6 +1,6 @@
 import UIKit
 
-/// The keys and a status line, drawn like Apple's keyboard.
+/// The keys and the bar above them, drawn like Apple's keyboard.
 ///
 /// Touches are tracked by hand, so fast typing works as on Apple's keyboard:
 /// a character is typed when its finger lifts, or when the next finger lands,
@@ -28,7 +28,7 @@ final class KeyboardView: UIView {
 
     var onKey: (Key) -> Void = { _ in }
 
-    let status = UILabel()
+    let bar = TopBar()
 
     private var rows: [[Key]] = []
     private var keyViews: [KeyView] = []
@@ -41,10 +41,7 @@ final class KeyboardView: UIView {
     init() {
         super.init(frame: .zero)
         isMultipleTouchEnabled = true
-        status.font = .preferredFont(forTextStyle: .footnote)
-        status.textAlignment = .center
-        status.numberOfLines = 2
-        addSubview(status)
+        addSubview(bar)
         popup.isUserInteractionEnabled = false
         popup.isHidden = true
         addSubview(popup)
@@ -80,7 +77,7 @@ final class KeyboardView: UIView {
     override func layoutSubviews() {
         super.layoutSubviews()
         let metrics = Metrics(height: bounds.height)
-        status.frame = CGRect(x: 12, y: 0, width: bounds.width - 24, height: metrics.strip)
+        bar.frame = CGRect(x: 0, y: 0, width: bounds.width, height: metrics.strip)
         popup.frame = bounds
         for (view, frame) in zip(keyViews, keyFrames(metrics)) {
             view.frame = frame
@@ -288,7 +285,7 @@ final class KeyboardView: UIView {
 
     /// The nearest key: the gaps between keys belong to the keys beside them.
     private func keyIndex(at point: CGPoint) -> Int? {
-        guard !rows.isEmpty, point.y >= status.frame.maxY else { return nil }
+        guard !rows.isEmpty, point.y >= bar.frame.maxY else { return nil }
         let m = Metrics(height: bounds.height)
         let row = min(max(Int((point.y - m.rowTop(0) + m.rowGap / 2) / (m.keyHeight + m.rowGap)), 0), rows.count - 1)
         let start = rows[..<row].reduce(0) { $0 + $1.count }
