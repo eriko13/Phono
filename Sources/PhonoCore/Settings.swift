@@ -33,8 +33,8 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
         return Settings(store: UserDefaults(suiteName: domain) ?? .standard)
     }()
 
-    /// macOS system sounds offered for the end of a recording.
-    public static let stopSounds = ["Bottle", "Morse", "Purr", "Tink", "Glass", "Pop"]
+    /// macOS system sounds offered for a recording's cues.
+    public static let soundNames = ["Bottle", "Morse", "Purr", "Tink", "Glass", "Pop"]
 
     public let store: UserDefaults
 
@@ -91,7 +91,7 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
     public var stopSound: String {
         get {
             let name = value(.stopSound, "")
-            return Self.stopSounds.contains(name) ? name : Self.stopSounds[0]
+            return Self.soundNames.contains(name) ? name : Self.soundNames[0]
         }
         nonmutating set { store.set(newValue, forKey: Key.stopSound.rawValue) }
     }

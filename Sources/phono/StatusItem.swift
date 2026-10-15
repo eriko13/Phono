@@ -78,13 +78,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             },
             toggle("Add trailing space", \.appendSpace),
             toggle("Play sounds", \.sounds),
-            choice(
-                "Stop sound", Settings.stopSounds.map { ($0, $0) },
-                current: { self.settings.stopSound }, label: { $0 }
-            ) {
-                self.settings.stopSound = $0
-                NSSound(named: NSSound.Name($0))?.play()   // the menu doubles as a preview
-            },
+            soundChoice("Stop sound", \.stopSound),
             MenuItem("Recent", isShown: { !self.dictation.recent.isEmpty }, submenu: recentMenu),
             .separator(),
             MenuItem("Allow Accessibility…", isShown: { !Permissions.isAccessibilityGranted }) {
@@ -160,6 +154,16 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         MenuItem(title, isOn: { self.settings[keyPath: setting] }) {
             self.settings[keyPath: setting].toggle()
             self.refresh()
+        }
+    }
+
+    private func soundChoice(_ title: String, _ setting: ReferenceWritableKeyPath<Settings, String>) -> MenuItem {
+        choice(
+            title, Settings.soundNames.map { ($0, $0) },
+            current: { self.settings[keyPath: setting] }, label: { $0 }
+        ) {
+            self.settings[keyPath: setting] = $0
+            NSSound(named: NSSound.Name($0))?.play()   // the menu doubles as a preview
         }
     }
 
