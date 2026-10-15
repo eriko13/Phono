@@ -1,18 +1,24 @@
 import AVFoundation
+#if os(macOS)
+import CoreAudio
+#endif
 import Foundation
 import PhonoCore
 
 public enum RecorderError: Error, CustomStringConvertible {
     case noInputDevice
+    /// The chosen microphone could not be selected (Core Audio status).
+    case deviceUnavailable(OSStatus)
 
     public var description: String {
         switch self {
         case .noInputDevice: return "no microphone found"
+        case .deviceUnavailable(let status): return "the chosen microphone is unavailable (\(status))"
         }
     }
 }
 
-/// Records the default input device into 16 kHz mono floats.
+/// Records an input device into 16 kHz mono floats.
 ///
 /// A fresh `AVAudioEngine` per recording costs a few milliseconds and means a
 /// device change (AirPods connecting, say) between two dictations just works.
@@ -20,6 +26,12 @@ public enum RecorderError: Error, CustomStringConvertible {
 public final class Recorder {
     private var engine: AVAudioEngine?
     private var sink: SampleSink?
+
+    #if os(macOS)
+    /// The Core Audio device to record from, or nil for the system default.
+    /// Read each time the microphone opens.
+    public var inputDevice: AudioDeviceID?
+    #endif
 
     /// The microphone is on. It may be on without capturing, so that a
     /// capture can begin while the app is in the background.
@@ -58,6 +70,9 @@ public final class Recorder {
 
         let engine = AVAudioEngine()
         let input = engine.inputNode
+        #if os(macOS)
+        if let inputDevice { try use(inputDevice, for: input) }
+        #endif
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw RecorderError.noInputDevice
@@ -85,6 +100,18 @@ public final class Recorder {
     public func endCapture() -> [Float] {
         sink?.endCapture() ?? []
     }
+
+    #if os(macOS)
+    /// Before the format is read: the format is the device's.
+    private func use(_ device: AudioDeviceID, for input: AVAudioInputNode) throws {
+        guard let unit = input.audioUnit else { return }
+        var device = device
+        let status = AudioUnitSetProperty(
+            unit, kAudioOutputUnitProperty_CurrentDevice, kAudioUnitScope_Global, 0,
+            &device, UInt32(MemoryLayout<AudioDeviceID>.size))
+        guard status == noErr else { throw RecorderError.deviceUnavailable(status) }
+    }
+    #endif
 
     /// Turn the microphone off. Audio not yet taken with `endCapture` is lost.
     public func close() {

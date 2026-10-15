@@ -141,6 +141,8 @@ final class DictationController {
         stream?.start()
 
         let hud = self.hud
+        // Unplugged since it was chosen: record from the system default.
+        recorder.inputDevice = AudioInputs.named(uid: settings.inputDevice)?.id
         do {
             try recorder.start(
                 onLevel: { level in Task { @MainActor in hud.setLevel(level) } },

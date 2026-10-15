@@ -27,6 +27,8 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(settings.engine, .local)
         XCTAssertEqual(settings.serverURL, "")
         XCTAssertEqual(settings.serverKey, "")
+        XCTAssertEqual(settings.inputDevice, "")
+        XCTAssertEqual(settings.inputDeviceName, "")
     }
 
     func testRoundTrip() {
@@ -37,6 +39,8 @@ final class SettingsTests: XCTestCase {
         settings.engine = .server
         settings.serverURL = "http://overmn:8000"
         settings.serverKey = "secret"
+        settings.inputDevice = "AppleUSBAudioEngine:Shure:MV7:1"
+        settings.inputDeviceName = "Shure MV7"
 
         XCTAssertEqual(settings.mode, .toggle)
         XCTAssertEqual(settings.hotkey.title, "F5")
@@ -45,6 +49,8 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(settings.engine, .server)
         XCTAssertEqual(settings.serverURL, "http://overmn:8000")
         XCTAssertEqual(settings.serverKey, "secret")
+        XCTAssertEqual(settings.inputDevice, "AppleUSBAudioEngine:Shure:MV7:1")
+        XCTAssertEqual(settings.inputDeviceName, "Shure MV7")
     }
 
     func testOldPasteSwitchStillCounts() {

@@ -46,6 +46,7 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
     enum Key: String {
         case mode = "hotkeyMode", hotkey, output, appendSpace, sounds, stopSound
         case engine, serverURL, serverKey
+        case inputDevice, inputDeviceName
         /// Before `output`: true for paste, false for copy only.
         case legacyAutoPaste = "autoPaste"
     }
@@ -85,6 +86,18 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
             return Self.stopSounds.contains(name) ? name : Self.stopSounds[0]
         }
         nonmutating set { store.set(newValue, forKey: Key.stopSound.rawValue) }
+    }
+
+    /// The microphone's Core Audio UID. Empty: the system default input.
+    public var inputDevice: String {
+        get { value(.inputDevice, "") }
+        nonmutating set { store.set(newValue, forKey: Key.inputDevice.rawValue) }
+    }
+
+    /// The chosen microphone's name, for the menu while it is unplugged.
+    public var inputDeviceName: String {
+        get { value(.inputDeviceName, "") }
+        nonmutating set { store.set(newValue, forKey: Key.inputDeviceName.rawValue) }
     }
 
     public var engine: Engine {

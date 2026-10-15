@@ -10,6 +10,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     private let dictation: DictationController
     private let hotkeys: HotkeyManager
     private let recentMenu = makeMenu([])
+    private let microphoneMenu = makeMenu([])
 
     init(settings: Settings, speech: SpeechModel, dictation: DictationController, hotkeys: HotkeyManager) {
         self.settings = settings
@@ -35,6 +36,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         statusItem.button?.image = StatusIcon.image(icon)
 
         rebuildRecent()
+        rebuildMicrophones()
         statusItem.menu?.items.forEach { ($0 as? MenuItem)?.reload() }
     }
 
@@ -61,6 +63,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
                 self.settings.engine = $0
                 self.speech.load()
             },
+            MenuItem(liveTitle: { "Microphone: \(self.microphoneTitle)" }, submenu: microphoneMenu),
             choice(
                 "Mode", HotkeyMode.allCases.map { ($0.title, $0) },
                 current: { self.settings.mode }, label: { $0.title }
@@ -150,7 +153,43 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
     }
 
+    /// Devices come and go, so the list is read again each time the menu opens.
+    private func rebuildMicrophones() {
+        let inputs = AudioInputs.all
+        let chosen = settings.inputDevice
+        let systemName = AudioInputs.systemDefault.map { " (\($0.name))" } ?? ""
+
+        var items: [NSMenuItem] = [
+            MenuItem("System default\(systemName)", isOn: { chosen.isEmpty }) {
+                self.selectMicrophone(nil)
+            },
+            .separator(),
+        ]
+        items += inputs.map { input in
+            MenuItem(input.name, isOn: { input.uid == chosen }) { self.selectMicrophone(input) }
+        }
+        if !chosen.isEmpty, !inputs.contains(where: { $0.uid == chosen }) {
+            let missing = MenuItem("\(settings.inputDeviceName) — not connected")
+            missing.state = .on
+            items.append(missing)
+        }
+        microphoneMenu.items = items
+    }
+
+    private var microphoneTitle: String {
+        let chosen = settings.inputDevice
+        if chosen.isEmpty { return "System default" }
+        if AudioInputs.named(uid: chosen) == nil { return "System default (\(settings.inputDeviceName) not connected)" }
+        return settings.inputDeviceName
+    }
+
     // MARK: - Actions
+
+    private func selectMicrophone(_ input: AudioInput?) {
+        settings.inputDevice = input?.uid ?? ""
+        settings.inputDeviceName = input?.name ?? ""
+        refresh()
+    }
 
     private func selectHotkey(_ preset: HotkeyPreset) {
         settings.hotkey = preset
