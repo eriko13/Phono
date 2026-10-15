@@ -38,7 +38,7 @@ cd Phono
 The script downloads the model (345 MB), builds Phono, copies it to `/Applications`, and opens it. Then:
 
 1. Allow microphone access.
-2. Allow Phono in **System Settings › Privacy & Security › Accessibility**. Phono needs this to see the Option key and to paste or type the text.
+2. Allow Phono in **System Settings › Privacy & Security › Accessibility**. Phono needs this to see the Option key or a mouse side button and to paste or type the text.
 3. Wait until the menu-bar wave is no longer dimmed. On the first launch, macOS prepares the model for your Mac. This takes a minute or two and happens once.
 
 To update, run `git pull` and `./Scripts/install.sh` again. macOS treats each build as a new app, so remove the old Phono entry from the Accessibility list and allow the new one.
@@ -52,7 +52,8 @@ Option is also part of other shortcuts, such as ⌥←. If you press another key
 Settings are in the menu-bar menu:
 
 - **Mode**: hold to talk, or press once to start and again to stop.
-- **Shortcut**: ⌥ Option, Right ⌥ Option, fn, or a key combination such as ⌃⌥Space. If you choose fn, set **Keyboard › Press 🌐 key to** to **Do Nothing**.
+- **Shortcuts**: check any number; each one starts a dictation. The choices are ⌥ Option, Right ⌥ Option, fn, mouse button 4 or 5 (the side buttons), and key combinations such as ⌃⌥Space. If you check fn, set **Keyboard › Press 🌐 key to** to **Do Nothing**. A side button no longer goes back or forward in a browser while it is checked. If your mouse app (Logi Options+, say) gives the side buttons another job, set them back to their default first.
+- **Microphone**: System default, or any input such as AirPods or a USB microphone. Phono remembers the choice. While that microphone is unplugged, Phono uses the system default.
 - **Output**: how the text gets to the active app.
   - **Paste** (default): Phono pastes the text with ⌘V, then puts back your clipboard.
   - **Type**: Phono types the text one character at a time. Use it where paste does not work, such as in apps or web forms that block paste. Your clipboard does not change. Long text takes a second or two.
