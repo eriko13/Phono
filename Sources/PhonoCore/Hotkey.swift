@@ -23,6 +23,11 @@ public enum HotkeyTrigger: Equatable, Sendable {
     /// these, so the app watches modifier changes instead (needs
     /// Accessibility).
     case modifier(ModifierKey)
+    /// An extra mouse button, numbered like `NSEvent.buttonNumber`: 2 is
+    /// the middle button, 3 and 4 the side buttons (back and forward). The
+    /// app takes the click, so a browser does not also go back (needs
+    /// Accessibility).
+    case mouseButton(Int)
 }
 
 /// A shortcut Phono can use.
@@ -36,6 +41,13 @@ public struct HotkeyPreset: Sendable, Equatable {
         return false
     }
 
+    /// Lone modifiers and mouse buttons are seen through event monitors,
+    /// which macOS allows only with Accessibility.
+    public var needsAccessibility: Bool {
+        if case .chord = trigger { return false }
+        return true
+    }
+
     static let cmd: UInt32 = 0x0100
     static let shift: UInt32 = 0x0200
     static let option: UInt32 = 0x0800
@@ -46,6 +58,8 @@ public struct HotkeyPreset: Sendable, Equatable {
         HotkeyPreset(name: "option", title: "⌥ Option", trigger: .modifier(.option)),
         HotkeyPreset(name: "right-option", title: "Right ⌥ Option", trigger: .modifier(.rightOption)),
         HotkeyPreset(name: "fn", title: "fn (Globe)", trigger: .modifier(.fn)),
+        HotkeyPreset(name: "mouse-4", title: "Mouse button 4 (back)", trigger: .mouseButton(3)),
+        HotkeyPreset(name: "mouse-5", title: "Mouse button 5 (forward)", trigger: .mouseButton(4)),
         HotkeyPreset(name: "ctrl-opt-space", title: "⌃⌥Space",
                      trigger: .chord(keyCode: space, modifiers: control | option)),
         HotkeyPreset(name: "opt-space", title: "⌥Space",

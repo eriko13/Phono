@@ -72,7 +72,8 @@ private func printStatus(model: URL) {
         ("Model", Model.isInstalled(at: model) ? model.path : "not downloaded (run Scripts/download-model.sh)"),
         ("Accessibility", Permissions.isAccessibilityGranted ? "granted" : "not granted"),
         ("Microphone", Permissions.microphoneStatus),
-        ("Shortcut", "\(settings.hotkey.title), \(settings.mode.title.lowercased())"),
+        ("Input", settings.inputDevice.isEmpty ? "system default" : settings.inputDeviceName),
+        ("Shortcuts", "\(settings.hotkeys.map(\.title).joined(separator: ", ")), \(settings.mode.title.lowercased())"),
         ("Output", settings.output.title),
     ]
     for (label, value) in rows {

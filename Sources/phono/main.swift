@@ -32,7 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkeys.onPress = { dictation.hotkeyPressed($0) }
         hotkeys.onRelease = { dictation.hotkeyReleased($0) }
         hotkeys.onInterrupt = { _ in dictation.hotkeyInterrupted() }
-        hotkeys.register([settings.hotkey])
+        hotkeys.register(settings.hotkeys)
 
         statusItem = StatusItemController(
             settings: settings, speech: speech, dictation: dictation, hotkeys: hotkeys)
@@ -41,7 +41,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Ask up front, so the first dictation works.
         if Permissions.isMicrophoneUndetermined { Permissions.requestMicrophone() }
-        if settings.output != .copy || settings.hotkey.isModifierOnly { Permissions.promptAccessibility() }
+        if settings.output != .copy || settings.hotkeys.contains(where: \.needsAccessibility) { Permissions.promptAccessibility() }
 
         speech.load()
     }

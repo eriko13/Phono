@@ -80,4 +80,16 @@ final class HotkeyPresetTests: XCTestCase {
         XCTAssertTrue(HotkeyPreset.default.isModifierOnly)
         XCTAssertFalse(HotkeyPreset.named("f5")!.isModifierOnly)
     }
+
+    func testMouseSideButtons() {
+        XCTAssertEqual(HotkeyPreset.named("mouse-4")!.trigger, .mouseButton(3))
+        XCTAssertEqual(HotkeyPreset.named("mouse-5")!.trigger, .mouseButton(4))
+        XCTAssertFalse(HotkeyPreset.named("mouse-4")!.isModifierOnly)
+    }
+
+    func testWhichNeedAccessibility() {
+        XCTAssertTrue(HotkeyPreset.named("fn")!.needsAccessibility)
+        XCTAssertTrue(HotkeyPreset.named("mouse-4")!.needsAccessibility)
+        XCTAssertFalse(HotkeyPreset.named("f5")!.needsAccessibility)
+    }
 }

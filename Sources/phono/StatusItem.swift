@@ -68,11 +68,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
                 "Mode", HotkeyMode.allCases.map { ($0.title, $0) },
                 current: { self.settings.mode }, label: { $0.title }
             ) { self.settings.mode = $0 },
-            choice(
-                "Shortcut", HotkeyPreset.all.map { ($0.title, $0) },
-                current: { self.settings.hotkey }, label: { $0.title },
-                separatorBefore: HotkeyPreset.all.firstIndex { !$0.isModifierOnly }
-            ) { self.selectHotkey($0) },
+            MenuItem(liveTitle: { "Shortcuts: \(self.shortcutTitles)" }, submenu: shortcutMenu()),
             choice(
                 "Output", Output.allCases.map { ($0.title, $0) },
                 current: { self.settings.output }, label: { $0.title }
@@ -110,9 +106,33 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private var hint: String {
         if let taken = hotkeys.taken.first { return "\(taken.title) is taken by another app" }
-        let shortcut = settings.hotkey.title
-        if hotkeys.needsAccessibility { return "Allow Accessibility to use \(shortcut)" }
-        return "\(settings.mode == .hold ? "Hold" : "Press") \(shortcut) to dictate"
+        let shortcuts = settings.hotkeys.map(\.title).joined(separator: " or ")
+        if hotkeys.needsAccessibility { return "Allow Accessibility to use \(shortcuts)" }
+        return "\(settings.mode == .hold ? "Hold" : "Press") \(shortcuts) to dictate"
+    }
+
+    private var shortcutTitles: String {
+        settings.hotkeys.map(\.title).joined(separator: ", ")
+    }
+
+    /// A checkbox per shortcut, since any number of them can start a
+    /// dictation. Grouped: lone modifiers, mouse buttons, key combinations.
+    private func shortcutMenu() -> NSMenu {
+        var items: [NSMenuItem] = []
+        var group: String?
+        for preset in HotkeyPreset.all {
+            let kind = switch preset.trigger {
+            case .modifier: "modifier"
+            case .mouseButton: "mouse"
+            case .chord: "chord"
+            }
+            if let group, group != kind { items.append(.separator()) }
+            group = kind
+            items.append(MenuItem(preset.title, isOn: { self.settings.hotkeys.contains(preset) }) {
+                self.toggleHotkey(preset)
+            })
+        }
+        return makeMenu(items)
     }
 
     /// A submenu of options with a checkmark on the current one. Its title
@@ -191,10 +211,22 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         refresh()
     }
 
-    private func selectHotkey(_ preset: HotkeyPreset) {
-        settings.hotkey = preset
-        hotkeys.register([preset])
-        if preset.isModifierOnly { Permissions.promptAccessibility() }
+    /// Adds or removes one shortcut. The last one stays: without a shortcut
+    /// Phono could not be used.
+    private func toggleHotkey(_ preset: HotkeyPreset) {
+        var chosen = settings.hotkeys
+        if let index = chosen.firstIndex(of: preset) {
+            guard chosen.count > 1 else { return }
+            chosen.remove(at: index)
+        } else {
+            chosen.append(preset)
+        }
+        settings.hotkeys = chosen
+        hotkeys.register(settings.hotkeys)
+        refresh()
+
+        guard chosen.contains(preset) else { return }
+        if preset.needsAccessibility { Permissions.promptAccessibility() }
         if preset.trigger == .modifier(.fn) { explainGlobeKey() }
     }
 

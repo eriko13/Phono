@@ -4,7 +4,8 @@ import AVFoundation
 
 /// The two permissions Phono uses:
 /// - Microphone, to record while the shortcut is active.
-/// - Accessibility, to see a lone ⌥ or fn, and to paste with ⌘V or type.
+/// - Accessibility, to see a lone ⌥ or fn or a mouse side button, and to
+///   paste with ⌘V or type.
 enum Permissions {
     static let accessibilityPane = "com.apple.preference.security?Privacy_Accessibility"
     static let microphonePane = "com.apple.preference.security?Privacy_Microphone"

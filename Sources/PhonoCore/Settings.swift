@@ -44,11 +44,13 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
 
     /// Stored key names. Changing one orphans users' saved values.
     enum Key: String {
-        case mode = "hotkeyMode", hotkey, output, appendSpace, sounds, stopSound
+        case mode = "hotkeyMode", hotkeys, output, appendSpace, sounds, stopSound
         case engine, serverURL, serverKey
         case inputDevice, inputDeviceName
         /// Before `output`: true for paste, false for copy only.
         case legacyAutoPaste = "autoPaste"
+        /// Before `hotkeys`: the one shortcut's name.
+        case legacyHotkey = "hotkey"
     }
 
     public var mode: HotkeyMode {
@@ -56,9 +58,15 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
         nonmutating set { store.set(newValue.rawValue, forKey: Key.mode.rawValue) }
     }
 
-    public var hotkey: HotkeyPreset {
-        get { HotkeyPreset.named(value(.hotkey, "")) ?? .default }
-        nonmutating set { store.set(newValue.name, forKey: Key.hotkey.rawValue) }
+    /// Every shortcut that starts a dictation, in menu order. Never empty.
+    public var hotkeys: [HotkeyPreset] {
+        get {
+            let names = Set(value(.hotkeys, [String]()))
+            let chosen = HotkeyPreset.all.filter { names.contains($0.name) }
+            if !chosen.isEmpty { return chosen }
+            return [HotkeyPreset.named(value(.legacyHotkey, "")) ?? .default]
+        }
+        nonmutating set { store.set(newValue.map(\.name), forKey: Key.hotkeys.rawValue) }
     }
 
     /// Paste and type need Accessibility. Without it, the text is only copied.
