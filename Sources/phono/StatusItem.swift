@@ -78,6 +78,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
             },
             toggle("Add trailing space", \.appendSpace),
             toggle("Play sounds", \.sounds),
+            soundChoice("Start sound", \.startSound),
             soundChoice("Stop sound", \.stopSound),
             MenuItem("Recent", isShown: { !self.dictation.recent.isEmpty }, submenu: recentMenu),
             .separator(),

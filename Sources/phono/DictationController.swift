@@ -170,7 +170,7 @@ final class DictationController {
 
     private func reveal() {
         revealed = true
-        play("Tink")
+        play(settings.startSound)
         hud.showListening()
     }
 

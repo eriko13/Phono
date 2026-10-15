@@ -23,6 +23,7 @@ final class SettingsTests: XCTestCase {
         XCTAssertEqual(settings.output, .paste)
         XCTAssertTrue(settings.appendSpace)
         XCTAssertTrue(settings.sounds)
+        XCTAssertEqual(settings.startSound, "Tink")
         XCTAssertEqual(settings.stopSound, "Bottle")
         XCTAssertEqual(settings.engine, .local)
         XCTAssertEqual(settings.serverURL, "")
@@ -35,6 +36,7 @@ final class SettingsTests: XCTestCase {
         settings.mode = .toggle
         settings.hotkeys = [HotkeyPreset.named("f5")!, HotkeyPreset.named("fn")!]
         settings.output = .type
+        settings.startSound = "Pop"
         settings.stopSound = "Morse"
         settings.engine = .server
         settings.serverURL = "http://overmn:8000"
@@ -46,6 +48,7 @@ final class SettingsTests: XCTestCase {
         // Menu order, not the order they were chosen in.
         XCTAssertEqual(settings.hotkeys.map(\.name), ["fn", "f5"])
         XCTAssertEqual(settings.output, .type)
+        XCTAssertEqual(settings.startSound, "Pop")
         XCTAssertEqual(settings.stopSound, "Morse")
         XCTAssertEqual(settings.engine, .server)
         XCTAssertEqual(settings.serverURL, "http://overmn:8000")
@@ -79,11 +82,13 @@ final class SettingsTests: XCTestCase {
     }
 
     func testInvalidValuesFallBack() {
+        store.set("NotASound", forKey: "startSound")
         store.set("NotASound", forKey: "stopSound")
         store.set("nonsense", forKey: "hotkey")
         store.set("nonsense", forKey: "output")
         store.set("nonsense", forKey: "engine")
 
+        XCTAssertEqual(settings.startSound, "Tink")
         XCTAssertEqual(settings.stopSound, "Bottle")
         XCTAssertEqual(settings.hotkeys, [.default])
         XCTAssertEqual(settings.output, .paste)

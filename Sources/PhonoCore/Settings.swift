@@ -44,7 +44,7 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
 
     /// Stored key names. Changing one orphans users' saved values.
     enum Key: String {
-        case mode = "hotkeyMode", hotkeys, output, appendSpace, sounds, stopSound
+        case mode = "hotkeyMode", hotkeys, output, appendSpace, sounds, startSound, stopSound
         case engine, serverURL, serverKey
         case inputDevice, inputDeviceName
         /// Before `output`: true for paste, false for copy only.
@@ -88,12 +88,20 @@ public struct Settings: @unchecked Sendable {  // UserDefaults is thread-safe
         nonmutating set { store.set(newValue, forKey: Key.sounds.rawValue) }
     }
 
+    public var startSound: String {
+        get { sound(.startSound, fallback: "Tink") }
+        nonmutating set { store.set(newValue, forKey: Key.startSound.rawValue) }
+    }
+
     public var stopSound: String {
-        get {
-            let name = value(.stopSound, "")
-            return Self.soundNames.contains(name) ? name : Self.soundNames[0]
-        }
+        get { sound(.stopSound, fallback: "Bottle") }
         nonmutating set { store.set(newValue, forKey: Key.stopSound.rawValue) }
+    }
+
+    /// A name from `soundNames`, or `fallback`.
+    private func sound(_ key: Key, fallback: String) -> String {
+        let name = value(key, "")
+        return Self.soundNames.contains(name) ? name : fallback
     }
 
     /// The microphone's Core Audio UID. Empty: the system default input.
