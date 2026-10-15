@@ -57,9 +57,9 @@ final class DictationController {
     // Toggle mode: a chord's press flips. A lone modifier flips on release,
     // and only after a clean tap, so ⌥← never starts a recording.
 
-    func hotkeyPressed() {
+    func hotkeyPressed(_ preset: HotkeyPreset) {
         held = true
-        let modifierOnly = settings.hotkey.isModifierOnly
+        let modifierOnly = preset.isModifierOnly
         switch settings.mode {
         case .hold:
             begin(quiet: modifierOnly)
@@ -68,13 +68,13 @@ final class DictationController {
         }
     }
 
-    func hotkeyReleased() {
+    func hotkeyReleased(_ preset: HotkeyPreset) {
         held = false
         switch settings.mode {
         case .hold:
             finish()
         case .toggle:
-            if settings.hotkey.isModifierOnly { toggle() }
+            if preset.isModifierOnly { toggle() }
         }
     }
 

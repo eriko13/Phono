@@ -29,10 +29,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let dictation = DictationController(settings: settings, speech: speech)
 
         hotkeys = HotkeyManager()
-        hotkeys.onPress = { dictation.hotkeyPressed() }
-        hotkeys.onRelease = { dictation.hotkeyReleased() }
-        hotkeys.onInterrupt = { dictation.hotkeyInterrupted() }
-        hotkeys.register(settings.hotkey)
+        hotkeys.onPress = { dictation.hotkeyPressed($0) }
+        hotkeys.onRelease = { dictation.hotkeyReleased($0) }
+        hotkeys.onInterrupt = { _ in dictation.hotkeyInterrupted() }
+        hotkeys.register([settings.hotkey])
 
         statusItem = StatusItemController(
             settings: settings, speech: speech, dictation: dictation, hotkeys: hotkeys)

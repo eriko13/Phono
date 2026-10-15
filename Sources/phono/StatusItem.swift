@@ -106,8 +106,8 @@ final class StatusItemController: NSObject, NSMenuDelegate {
     }
 
     private var hint: String {
+        if let taken = hotkeys.taken.first { return "\(taken.title) is taken by another app" }
         let shortcut = settings.hotkey.title
-        if hotkeys.registered == nil { return "\(shortcut) is taken by another app" }
         if hotkeys.needsAccessibility { return "Allow Accessibility to use \(shortcut)" }
         return "\(settings.mode == .hold ? "Hold" : "Press") \(shortcut) to dictate"
     }
@@ -154,7 +154,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private func selectHotkey(_ preset: HotkeyPreset) {
         settings.hotkey = preset
-        hotkeys.register(preset)
+        hotkeys.register([preset])
         if preset.isModifierOnly { Permissions.promptAccessibility() }
         if preset.trigger == .modifier(.fn) { explainGlobeKey() }
     }
