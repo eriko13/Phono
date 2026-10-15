@@ -70,10 +70,16 @@ public final class Recorder {
 
         let engine = AVAudioEngine()
         let input = engine.inputNode
+        var format = input.outputFormat(forBus: 0)
         #if os(macOS)
-        if let inputDevice { try use(inputDevice, for: input) }
+        if let inputDevice {
+            try use(inputDevice, for: input)
+            // The output side keeps the default device's format, say 44.1
+            // kHz, while the chosen one runs at 48 kHz: a tap in that format
+            // gets no audio. The input side has the device's own format.
+            format = input.inputFormat(forBus: 0)
+        }
         #endif
-        let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0, format.channelCount > 0 else {
             throw RecorderError.noInputDevice
         }

@@ -22,11 +22,17 @@ enum AudioInputs {
         return ids.compactMap { id in
             guard hasInput(id), !isHidden(id),
                   let uid = string(id, kAudioDevicePropertyDeviceUID),
+                  !uid.hasPrefix(engineAggregatePrefix),
                   let name = string(id, kAudioObjectPropertyName)
             else { return nil }
             return AudioInput(id: id, uid: uid, name: name)
         }
     }
+
+    /// `AVAudioEngine` builds a device like `CADefaultDeviceAggregate-<pid>-0`
+    /// for itself while it runs. It is not hidden, but it is no microphone,
+    /// and its UID changes with every launch.
+    private static let engineAggregatePrefix = "CADefaultDeviceAggregate"
 
     /// The input macOS records from when no device is chosen.
     static var systemDefault: AudioInput? {
